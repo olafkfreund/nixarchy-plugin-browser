@@ -40,6 +40,14 @@ mapfile -d '' ALL < <(find "$TARGET" \
      -o -name test -o -name tests -o -name spec -o -name specs \
      -o -name fixtures -o -name coverage -o -name docs \) -prune -o \
   -type f -print0 2>/dev/null)
+# Code the shell can still load (QML can `import "docs"`) is scanned wherever
+# it sits; only .git and node_modules are never looked into.
+declare -A SEEN=()
+for f in "${ALL[@]}"; do SEEN[$f]=1; done
+while IFS= read -r -d '' f; do
+  [[ -n ${SEEN[$f]:-} ]] || ALL+=("$f")
+done < <(find "$TARGET" \( -name .git -o -name node_modules \) -prune -o \
+  -type f \( -name '*.qml' -o -name '*.js' -o -name '*.mjs' -o -name '*.sh' \) -print0 2>/dev/null)
 
 TEXT=()
 BIN_EXEC=()
