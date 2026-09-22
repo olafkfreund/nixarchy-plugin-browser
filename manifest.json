@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.modpunk.plugin-browser",
   "name": "Plugin Browser",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "author": "modpunk",
   "license": "MIT",
   "description": "Browse the Omarchy plugin marketplace and audit any plugin in a sandbox before it touches your shell. A bar button that opens a terminal browser; every install routes through a sandboxed, commit-pinned static scan.",
