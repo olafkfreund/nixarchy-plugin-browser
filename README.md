@@ -24,7 +24,8 @@ ask — hands that reviewed checkout to `omarchy plugin add`.
 | `omarchy-plugin-browser` | Searchable TUI over the live marketplace catalog (`plugins.omarchy.org`). Never runs marketplace code — it reads names, authors, tags, verification status, and the install command as plain text. |
 | `omarchy-plugin-audit` | Clones a plugin into a `bwrap` sandbox with no network and an empty home, pins to the verified commit, greps for hostile patterns, runs the shell's own manifest validator, and prints a verdict. Optionally installs the vetted checkout (disabled). |
 | `nixarchy-plugin-fix` | Answers "will it run on nixarchy?" from the audit's NixOS verdict, and hands the findings to your default agent to explain them or fix a disposable copy. See [NixOS check and agent fixes](#nixos-check-and-agent-fixes). |
-| Bar widget | A puzzle-piece button in the bar that opens the browser in a terminal. A thin launcher; all the logic lives in the two scripts above. |
+| Plugin Browser panel | The same browser inside the Omarchy shell: full-screen, keyboard-driven, on **Super+Alt+U**, the bar button, and *Setup → Plugins → Add Plugin*. See [The panel](#the-panel). |
+| Bar widget | A puzzle-piece button. A click opens the panel; a right click opens the terminal TUI. |
 
 ## Install
 
@@ -41,6 +42,12 @@ nixarchy pkg add bubblewrap && nixarchy apply
 ```
 
 Reverse everything with `./uninstall.sh`.
+
+After `./install.sh --plugin`, enable it so the shell can open the panel:
+
+```bash
+omarchy plugin enable io.github.olafkfreund.nixarchy-plugin-browser
+```
 
 ### Moving from the old plugin id
 
@@ -84,6 +91,66 @@ omarchy-plugin-audit <id> --json       # machine-readable report
 ```
 
 Exit codes: `0` clean · `10` review-required · `20` findings · `2` usage · `3` scan error.
+
+## The panel
+
+The panel is the browser inside the shell, like `nixarchy.devenv` and
+`nixarchy.podman`. It opens full-screen over what you are doing and holds the
+keyboard until you close it.
+
+| Where | Keys |
+|-------|------|
+| List | type to search · `↑` `↓` or `Ctrl+K` `Ctrl+J` to move · `Enter` for details · `Ctrl+R` to refresh the catalog · `Esc` to clear the search, then close |
+| Details | `a` audit again · `e` explain / `f` fix with your default agent (opens a terminal) · `i` install, disabled (asks y/n) · `c` copy the install command · `o` open the repo · `j` `k` scroll · `Esc` back |
+| Anywhere | `?` all keys · `Super+Alt+U` open or close |
+
+Opening a plugin runs the same sandboxed audit as `omarchy-plugin-audit`, and
+the details show both verdicts: security, and NixOS. The panel only ever reads
+`lib/catalog.sh list` and the audit's `--json`, and shows everything from the
+marketplace as plain text. The agent session and its fix flow run in a
+floating terminal, because they are interactive.
+
+It can also be opened from a script:
+
+```bash
+omarchy-shell shell toggle io.github.olafkfreund.nixarchy-plugin-browser '{}'
+omarchy-shell shell toggle io.github.olafkfreund.nixarchy-plugin-browser '{"id":"crmne.hyprmoncfg"}'
+omarchy-shell shell toggle io.github.olafkfreund.nixarchy-plugin-browser '{"query":"monitor"}'
+```
+
+### Keybinding and the Add Plugin row
+
+On nixarchy, the menu's extension file and your binds files are generated
+from your flake, so declare both there. These are the lines this machine uses
+(`hosts/common/nixos/omarchy-plugin-browser.nix`):
+
+```nix
+{ ... }:
+{
+  # Setup > Plugins > Add Plugin opens the Plugin Browser instead of a bare
+  # `omarchy-plugin-add`: search, audit and the NixOS check come first.
+  programs.nixarchy.menu.extraEntries."setup.plugin.add" = {
+    icon = "󰖟";
+    label = "Add Plugin";
+    action = "omarchy-shell shell toggle io.github.olafkfreund.nixarchy-plugin-browser '{}'";
+  };
+
+  home-manager.users.<you>.home.file.".config/hypr/plugin-browser-binds.lua".text = ''
+    o.bind("SUPER + ALT + U", "Plugin browser", "omarchy-shell shell toggle io.github.olafkfreund.nixarchy-plugin-browser '{}'")
+  '';
+}
+```
+
+Then add one line to `~/.config/hypr/bindings.lua`, which is yours and is
+never generated:
+
+```lua
+pcall(require, "hypr.plugin-browser-binds")
+```
+
+Without Nix, copy `hypr/plugin-browser-binds.lua` from the plugin folder to
+`~/.config/hypr/` and add the same line. Removing the `extraEntries` line
+brings the original Add Plugin row back.
 
 ## NixOS check and agent fixes
 
@@ -207,14 +274,20 @@ sandbox protects the *audit*, not your desktop once you turn a plugin on.
 ## Layout
 
 ```
-manifest.json                 bar-widget manifest (schemaVersion 1)
-BarWidget.qml                 the bar button (launches the browser)
+manifest.json                 menu + bar-widget manifest (schemaVersion 1)
+BarWidget.qml                 the bar button (opens the panel; right click: TUI)
+Menu.qml                      the full-screen panel (Super+Alt+U)
+BrowserView.qml · ShortcutSheet.qml · BrowserState.qml · qmldir   the panel's view, keys and state
+Model.js                      the panel's pure logic (tests/model-check.mjs)
+hypr/plugin-browser-binds.lua the Super+Alt+U binding
+lib/catalog.sh                the bounded catalog fetch, and `list` for the panel
 bin/omarchy-plugin-browser    marketplace TUI
 bin/omarchy-plugin-audit      sandboxed auditor / installer
 bin/nixarchy-plugin-fix       NixOS check → default agent (explain / fix a copy)
 lib/omarchy-plugin-scan.sh    the in-sandbox scanner
 install.sh · uninstall.sh     symlink the tools; optionally register the widget
 tests/scan-nix.sh             self-check for the NixOS scanner rules
+tests/catalog-list.sh         self-check for catalog.sh list
 ```
 
 ## License

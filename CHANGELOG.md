@@ -3,6 +3,13 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## 0.4.0
+
+- The browser runs inside the shell: a full-screen, keyboard-driven panel on Super+Alt+U
+- Opening a plugin shows its security and NixOS verdicts; e / f hand it to your agent, i installs it disabled
+- The bar button opens the panel; right-click it for the terminal browser
+- Can replace Setup → Plugins → Add Plugin (see the README for the flake lines)
+
 ## 0.3.0
 
 - Runs on nixarchy: NixOS paths, a sandbox that can see /nix/store, and the manifest check now really runs

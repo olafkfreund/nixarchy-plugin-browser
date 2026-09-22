@@ -72,6 +72,9 @@ if (( WITH_PLUGIN )); then
   say ""
   say "  Enable it when ready (it will appear in the right bar section):"
   say "      omarchy plugin enable $id"
+  say ""
+  say "  Keybinding (Super+Alt+U) and the Add Plugin menu row come from your flake;"
+  say "  see \"Keybinding and the Add Plugin row\" in README.md."
 fi
 
 # --- summary -----------------------------------------------------------------
