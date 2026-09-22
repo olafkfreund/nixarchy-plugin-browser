@@ -13,6 +13,18 @@ Phase A ships as its own PR; B and C follow on this branch.
 
 ### Facts this design rests on (checked on this machine, 2026-09-22)
 
+> **Amendment (2026-09-22, found during plan step B6, approved by the user):**
+> the envfs fact below was wrong. It came from `ls`, which envfs answers with
+> "no such file". Executing `/bin/bash`, `/usr/bin/bash` or `/usr/bin/<cmd>`
+> works whenever the command is on PATH, and nixarchy enables envfs on every
+> machine (`services.envfs.enable = lib.mkDefault true`, `modules/nixos.nix:1300`
+> in nixarchy). Phase A still avoids depending on envfs. The NixOS pass is
+> re-graded: only `/usr/share`, `/usr/lib` and `/opt` paths block. A new
+> review rule, `fhs-bin`, covers `/usr/bin/<cmd>`; `fhs-shebang` and
+> `imperative-pkg` become review; `imperative-pkg` looks at code files only.
+> Tests, benchmarks, docs and Makefiles are left out of the NixOS rules. The
+> plan carries the details.
+
 - Every tool the scripts call resolves from `/run/current-system/sw/bin`. That
   includes bash, git, jq, curl, file, gum, grep, find, du, timeout, setsid, stat,
   xdg-terminal-exec, omarchy, `omarchy-agent-prompt`, `omarchy-default-agent`,

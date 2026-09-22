@@ -190,16 +190,31 @@ scan INFO filesystem-write       '(FileView|writeFile|std::ofstream|>[[:space:]]
 # =============================================================================
 # Code a plugin runs: QML/JS, shell, Python, and extensionless scripts.
 NIX_CODE='\.(qml|js|mjs|sh|py)$|/[^./]+$'
+# Whether a plugin runs on NixOS is decided by its runtime files, not by its
+# tests, benchmarks, docs or Makefile (the security rules above still scan
+# those). The NixOS rules below see TEXT/BIN_EXEC without them; both are
+# restored after this section.
+NIX_SKIP='/(tests?|specs?|fixtures|benchmarks?|docs)/|/(GNUm|M|m)akefile$'
+SEC_TEXT=("${TEXT[@]}"); SEC_BIN=("${BIN_EXEC[@]}")
+TEXT=(); for f in "${SEC_TEXT[@]}"; do [[ ${f#"$TARGET"} =~ $NIX_SKIP ]] || TEXT+=("$f"); done
+BIN_EXEC=(); for f in "${SEC_BIN[@]}"; do [[ ${f#"$TARGET"} =~ $NIX_SKIP ]] || BIN_EXEC+=("$f"); done
 
-# fhs-path: an absolute FHS path. NixOS has no /usr/bin/<tool>, no
-# /usr/share/omarchy ($OMARCHY_PATH is a store path) and no /usr/lib or /opt.
-# /usr/bin/env is the one path NixOS guarantees.
+# nixarchy turns envfs on for every machine (modules/nixos.nix): /bin and
+# /usr/bin resolve any command on PATH. Nothing else under /usr exists, and
+# /opt does not either, so only those paths are blockers.
+
+# fhs-path (blocker): /usr/share (so /usr/share/omarchy: $OMARCHY_PATH is a
+# store path), /usr/lib, /opt. envfs does not cover these.
 scan NIX fhs-path \
-  '/usr/s?bin/[A-Za-z]|/usr/share/omarchy|/usr/lib/|(^|[^A-Za-z0-9_.~])/opt/' \
-  "$NIX_CODE" '/usr/bin/env'
+  '/usr/share/[A-Za-z]|/usr/lib(64)?/|(^|[^A-Za-z0-9_.~])/opt/' "$NIX_CODE"
 
-# fhs-shebang: an interpreter NixOS does not have at that path. #!/bin/sh and
-# #!/usr/bin/env are fine. (scan() skips # lines, so this reads line 1 itself.)
+# fhs-bin (review): /usr/bin/<cmd> works through envfs only if <cmd> is
+# installed. /usr/bin/env is the one path NixOS guarantees.
+scan NIX fhs-bin '/usr/s?bin/[A-Za-z]' "$NIX_CODE" '/usr/bin/env'
+
+# fhs-shebang (review): #!/bin/bash and the like run through envfs if the
+# interpreter is installed. #!/bin/sh and #!/usr/bin/env are always fine.
+# (scan() skips # lines, so this reads line 1 itself.)
 for f in "${TEXT[@]}"; do
   first=$(head -n1 -- "$f" 2>/dev/null)
   if [[ $first =~ ^\#![[:space:]]*/(usr/)?bin/(bash|zsh|fish|python[0-9.]*|node|perl)([[:space:]]|$) ]]; then
@@ -207,9 +222,10 @@ for f in "${TEXT[@]}"; do
   fi
 done
 
-# imperative-pkg: Arch package managers, or Omarchy's pacman wrapper. On
-# nixarchy these either do not exist or refuse; packages are declared.
-scan NIX imperative-pkg '\b(pacman|yay|paru|makepkg)\b|omarchy[- ]pkg[- ](add|install)'
+# imperative-pkg (review): Arch package managers, or Omarchy's pacman wrapper,
+# in code. On nixarchy these do not exist or refuse, so a dependency check or
+# an install hint built on them is wrong. Docs (.md, .json) are not code.
+scan NIX imperative-pkg '\b(pacman|yay|paru|makepkg)\b|omarchy[- ]pkg[- ](add|install)' "$NIX_CODE"
 
 # etc-write: /etc on NixOS is generated from the configuration and is mostly
 # read-only links into the store; a write there fails or is lost on rebuild.
@@ -242,6 +258,7 @@ done
 for f in "${BIN_EXEC[@]}"; do
   emit NIX bundled-elf "${f#"$TARGET"/}:0" "prebuilt binary; needs nix-ld or autoPatchelf"
 done
+TEXT=("${SEC_TEXT[@]}"); BIN_EXEC=("${SEC_BIN[@]}")
 
 # =============================================================================
 # MANIFEST VALIDATION  (same check the shell enforces before loading)

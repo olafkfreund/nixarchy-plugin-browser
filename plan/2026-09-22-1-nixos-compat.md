@@ -30,9 +30,15 @@ This plan is self-contained; it carries every approved spec decision.
   - Code files (`qml/js/mjs/sh`) are scanned even inside the pruned
     directories.
 - **NixOS pass.**
-  - It adds a `NIX` record kind and seven rules. Three are blockers:
-    `fhs-path`, `fhs-shebang`, `imperative-pkg`. Four need review:
-    `bundled-elf`, `etc-write`, `global-lang-install`, `download-exec`.
+  - It adds a `NIX` record kind and eight rules. **Amended in B6 (user
+    decision):** nixarchy turns envfs on for every machine
+    (`modules/nixos.nix:1300`), so `/bin` and `/usr/bin` resolve any command on
+    PATH. The only blocker is `fhs-path` (`/usr/share/*`, `/usr/lib*/`,
+    `/opt/`). These need review: `fhs-bin` (`/usr/bin/<cmd>`), `fhs-shebang`,
+    `imperative-pkg` (code files only), `bundled-elf`, `etc-write`,
+    `global-lang-install` and `download-exec`. The NixOS rules skip `tests/`,
+    `spec/`, `fixtures/`, `benchmarks/`, `docs/` and Makefiles; the security
+    rules still scan those folders.
   - It produces a separate verdict: `likely-ok`, `needs-review` or `blocked`.
   - The text report gets a section for it, and the JSON gets a
     `nixosCompatibility` field.
@@ -196,7 +202,8 @@ B5. Add `tests/scan-nix.sh`, a single self-checking bash script. It builds
 B6. Run the false-positive check: audit each
     `~/.config/omarchy/plugins/nixarchy.*` with `--json --no-sandbox`. Record
     each verdict.
-    → verify: every one is `likely-ok`. If one is not, inspect it. A real hit
+    → verify: every one is `likely-ok` or `needs-review`; none is `blocked`.
+    If one is blocked, inspect it. A real hit
     stays. A false positive tightens the regex in the same commit and adds
     that case to `tests/scan-nix.sh`.
 

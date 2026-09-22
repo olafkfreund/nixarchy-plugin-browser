@@ -393,7 +393,7 @@ else OUTCOME="passed"; OC_COLOR=$GRN; OC_EXIT=0; fi
 
 # NixOS compatibility: a second verdict on its own axis. It never touches
 # OC_EXIT, so the exit codes keep their security meaning.
-NIX_BLOCKERS="fhs-path fhs-shebang imperative-pkg"
+NIX_BLOCKERS="fhs-path"   # the rest work on nixarchy (envfs) or need a look
 nix_sev() { [[ " $NIX_BLOCKERS " == *" $1 "* ]] && echo blocker || echo review; }
 n_nixb=0; n_nixr=0
 while IFS=$'\t' read -r _ nid _; do
