@@ -28,12 +28,12 @@ UPD_SELF="$(readlink -f -- "${BASH_SOURCE[0]}")"
 UPD_DIR="$(cd -- "$(dirname -- "$UPD_SELF")/.." && pwd)"
 
 # ---- this plugin -------------------------------------------------------------
-UPD_ID="io.github.modpunk.plugin-browser"
+UPD_ID="io.github.olafkfreund.nixarchy-plugin-browser"
 UPD_NAME="Plugin Browser"
-UPD_REPO="OmarchyFans/omarchy-fans-plugin-browser"            # GitHub owner/repo the plugin is published from
+UPD_REPO="olafkfreund/nixarchy-plugin-browser"            # GitHub owner/repo the plugin is published from
 UPD_BRANCH="master"        # branch whose manifest.json is "the published version"
-UPD_SLUG="omarchy-plugin-browser"            # cache lives in ~/.cache/<slug>/update-check.json
-UPD_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy-plugin-browser/config.json"        # JSON file; "update_check": false turns the check off
+UPD_SLUG="nixarchy-plugin-browser"            # cache lives in ~/.cache/<slug>/update-check.json
+UPD_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/nixarchy-plugin-browser/config.json"        # JSON file; "update_check": false turns the check off
 UPD_KEEP_LOADED=0   # 1 when the plugin has a keepLoaded panel (needs a shell restart)
 UPD_BUILT_STAMP=""    # file install.sh writes with the version it built for, or empty
 # Runs in the update terminal after install.sh. Ask before anything that is not

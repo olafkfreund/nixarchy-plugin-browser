@@ -21,7 +21,7 @@ import qs.Ui
 // goes back to opening the browser.
 BarWidget {
   id: root
-  moduleName: "io.github.modpunk.plugin-browser"
+  moduleName: "io.github.olafkfreund.nixarchy-plugin-browser"
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
@@ -32,17 +32,17 @@ BarWidget {
     var url = Qt.resolvedUrl(".").toString()
     return decodeURIComponent(url.replace(/^file:\/\//, "")).replace(/\/$/, "")
   }
-  readonly property var childEnv: ({ "PATH": "/usr/local/bin:/usr/bin:/bin:/usr/share/omarchy/bin" })
+  readonly property var childEnv: ({ "PATH": "/run/wrappers/bin:/run/current-system/sw/bin:/etc/profiles/per-user/" + (Quickshell.env("USER") || "") + "/bin" })
 
   function launch() {
     if (updatePopup.open) updatePopup.open = false
     Quickshell.execDetached({
       command: [
-        "/usr/bin/xdg-terminal-exec",
-        "--app-id=io.github.modpunk.plugin-browser",
+        "/run/current-system/sw/bin/xdg-terminal-exec",
+        "--app-id=io.github.olafkfreund.nixarchy-plugin-browser",
         "--title=Plugin Browser",
         "-e",
-        "/usr/bin/bash", root.pluginDir + "/bin/omarchy-plugin-browser"
+        "/run/current-system/sw/bin/bash", root.pluginDir + "/bin/omarchy-plugin-browser"
       ],
       environment: root.childEnv,
       workingDirectory: root.home
@@ -71,7 +71,7 @@ BarWidget {
   }
   function checkUpdates() {
     if (root.setting("update_check", true) === false || updateProc.running) return
-    updateProc.command = ["/usr/bin/bash", root.pluginDir + "/lib/update.sh", "check", root.version]
+    updateProc.command = ["/run/current-system/sw/bin/bash", root.pluginDir + "/lib/update.sh", "check", root.version]
     updateProc.running = true
   }
   Process {
@@ -85,7 +85,7 @@ BarWidget {
     root.updateHiddenKey = root.updateKey
     updatePopup.open = false
     Quickshell.execDetached({
-      command: ["/usr/bin/bash", root.pluginDir + "/lib/update.sh", "run", root.updateAvailable ? "all" : "install"],
+      command: ["/run/current-system/sw/bin/bash", root.pluginDir + "/lib/update.sh", "run", root.updateAvailable ? "all" : "install"],
       environment: root.childEnv,
       workingDirectory: root.home
     })
@@ -95,7 +95,7 @@ BarWidget {
     updatePopup.open = false
     if (root.updateAvailable && root.updateInfo.latest)
       Quickshell.execDetached({
-        command: ["/usr/bin/bash", root.pluginDir + "/lib/update.sh", "dismiss", String(root.updateInfo.latest)],
+        command: ["/run/current-system/sw/bin/bash", root.pluginDir + "/lib/update.sh", "dismiss", String(root.updateInfo.latest)],
         environment: root.childEnv,
         workingDirectory: root.home
       })
