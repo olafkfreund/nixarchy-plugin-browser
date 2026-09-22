@@ -3,6 +3,21 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## 0.3.0
+
+- Runs on nixarchy: NixOS paths, a sandbox that can see /nix/store, and the manifest check now really runs
+- The audit refuses to run without bwrap instead of quietly dropping the sandbox
+- Own id and update feed: io.github.olafkfreund.nixarchy-plugin-browser
+- Code files in docs/ and test/ folders are scanned too
+
+## 0.2.2
+
+- The checkout of a remote plugin has the same deadline and size limits as the clone
+
+## 0.2.1
+
+- The clone or copy before the sandbox has a deadline and size and file-count limits
+
 ## 0.2.0
 
 - The bar button shows a dot when a new version is out; click it for what changed and a one-click update

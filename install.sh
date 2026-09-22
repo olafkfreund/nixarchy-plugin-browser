@@ -38,7 +38,7 @@ fail() { echo "install.sh: $*" >&2; exit 1; }
 # --- prerequisites -----------------------------------------------------------
 missing=()
 for c in git jq curl file gum; do command -v "$c" >/dev/null || missing+=("$c"); done
-command -v bwrap >/dev/null || say "install.sh: note — bwrap not found; the auditor will fall back to --no-sandbox (less isolation). Install it with: omarchy pkg add bubblewrap"
+command -v bwrap >/dev/null || say "install.sh: note — bwrap not found; the auditor refuses to run without it (unless you pass --no-sandbox). Install it with: nixarchy pkg add bubblewrap && nixarchy apply"
 (( ${#missing[@]} == 0 )) || fail "missing required tools: ${missing[*]}"
 
 # --- 1. CLI tools ------------------------------------------------------------
