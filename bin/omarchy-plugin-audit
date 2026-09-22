@@ -64,6 +64,14 @@ CATALOG_URL="https://plugins.omarchy.org/catalog.json"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-plugin-audit"
 CACHE_TTL=3600
 
+# Bounds enforced on the staging clone/copy below, BEFORE the sandbox starts
+# (HANCORE-linux's marketplace review, #5581 v2): a hostile or malfunctioning
+# audit target must not be able to keep git cloning forever or blow up local
+# disk before run_sandboxed() ever runs. Overridable for tests.
+AUDIT_STAGE_DEADLINE_SEC="${AUDIT_STAGE_DEADLINE_SEC:-120}"
+AUDIT_STAGE_MAX_BYTES="${AUDIT_STAGE_MAX_BYTES:-$((300 * 1024 * 1024))}"
+AUDIT_STAGE_MAX_FILES="${AUDIT_STAGE_MAX_FILES:-20000}"
+
 # ------------------------------------------------------------------- arg parse
 TARGET=""; MODE_HEAD=0; PIN_COMMIT=""; DO_INSTALL=0; AS_JSON=0
 USE_SANDBOX=1; PAUSE=0
@@ -85,7 +93,7 @@ done
 
 finish() { (( PAUSE )) && { printf '\n%sPress Enter to close…%s' "$DIM" "$RST"; read -r _ || true; }; exit "$1"; }
 
-for t in git jq find file grep; do command -v "$t" >/dev/null || die "missing required tool: $t" 3; done
+for t in git jq find file grep du timeout setsid stat; do command -v "$t" >/dev/null || die "missing required tool: $t" 3; done
 if (( USE_SANDBOX )) && ! command -v bwrap >/dev/null; then
   say "${YEL}bwrap not found — falling back to --no-sandbox.${RST}"; USE_SANDBOX=0
 fi
@@ -182,12 +190,95 @@ STAGE="$(mktemp -d "${TMPDIR:-/tmp}/omarchy-audit.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
 CHECKOUT="$STAGE/tree"
 
+# HANCORE-linux's marketplace review (#5581 v2): bin/omarchy-plugin-audit's
+# git clone and local cp -a both ran with no total deadline and no aggregate
+# byte/file-count ceiling, entirely BEFORE run_sandboxed() starts. A hostile
+# or malfunctioning audit target could therefore keep this alive indefinitely
+# or exhaust the user's disk before isolation ever begins. Every path that
+# stages the target tree now goes through _bound_run: a hard wall-clock
+# deadline with whole-process-group termination, live size/file-count
+# ceilings enforced while the transfer is streaming, and cleanup that is
+# itself bounded (a fixed grace period, then SIGKILL, then rm -rf).
+_dir_bytes() { du -sb -- "$1" 2>/dev/null | cut -f1; }
+_dir_files() { find "$1" -type f 2>/dev/null | wc -l; }
+
+_bound_run() {  # _bound_run <label> <watch-dir> -- <cmd...>
+  local label="$1" watch_dir="$2"; shift 2
+  [[ ${1:-} == -- ]] && shift
+  local errfile="$STAGE/${label}.err"
+  : >"$errfile"
+  local start_ts=$SECONDS pid reason=""
+  # setsid makes the child its own process-group leader, so "-$pid" below
+  # reaches every process it spawns (git's helpers, cp's children), not just
+  # the immediate one — bounded cleanup covers the whole subtree.
+  setsid "$@" >"$errfile" 2>&1 &
+  pid=$!
+  while kill -0 "$pid" 2>/dev/null; do
+    local elapsed=$(( SECONDS - start_ts ))
+    if (( elapsed >= AUDIT_STAGE_DEADLINE_SEC )); then
+      reason="exceeded the ${AUDIT_STAGE_DEADLINE_SEC}s deadline"
+    elif [[ -d $watch_dir ]]; then
+      local bytes files
+      bytes=$(_dir_bytes "$watch_dir")
+      files=$(_dir_files "$watch_dir")
+      if [[ -n $bytes ]] && (( bytes > AUDIT_STAGE_MAX_BYTES )); then
+        reason="grew past ${AUDIT_STAGE_MAX_BYTES} bytes (${bytes})"
+      elif [[ -n $files ]] && (( files > AUDIT_STAGE_MAX_FILES )); then
+        reason="grew past ${AUDIT_STAGE_MAX_FILES} files (${files})"
+      fi
+    fi
+    if [[ -n $reason ]]; then
+      kill -TERM "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
+      local grace=$(( SECONDS + 5 ))
+      while kill -0 "$pid" 2>/dev/null && (( SECONDS < grace )); do sleep 0.2; done
+      kill -KILL "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
+      wait "$pid" 2>/dev/null
+      rm -rf -- "$watch_dir"
+      die "$label aborted: $reason" 3
+    fi
+    sleep 0.5
+  done
+  wait "$pid"; local rc=$?
+  (( rc == 0 )) || die "$label failed: $(tr '\n' ' ' <"$errfile" | cut -c1-160)" 3
+  # A transfer that finishes fast can still land over the ceiling before the
+  # poll loop ever samples it — check once more right after it exits.
+  if [[ -d $watch_dir ]]; then
+    local bytes files
+    bytes=$(_dir_bytes "$watch_dir"); files=$(_dir_files "$watch_dir")
+    if { [[ -n $bytes ]] && (( bytes > AUDIT_STAGE_MAX_BYTES )); } \
+      || { [[ -n $files ]] && (( files > AUDIT_STAGE_MAX_FILES )); }; then
+      rm -rf -- "$watch_dir"
+      die "$label aborted: result exceeds the ${AUDIT_STAGE_MAX_BYTES}-byte/${AUDIT_STAGE_MAX_FILES}-file ceiling" 3
+    fi
+  fi
+}
+
 clone_hardened() {  # into $CHECKOUT
   # symlinks off (blunts the symlink+hooks class), hooks disabled, no submodule
-  # recursion, no credential/terminal prompts.
+  # recursion, no credential/terminal prompts, bounded by _bound_run above.
+  rm -rf -- "$CHECKOUT"
   GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -oBatchMode=yes" \
-  git -c core.symlinks=false -c core.hooksPath=/dev/null -c advice.detachedHead=false \
-    clone --quiet --no-checkout -- "$1" "$CHECKOUT" 2>"$STAGE/clone.err"
+    _bound_run "clone" "$CHECKOUT" -- \
+    git -c core.symlinks=false -c core.hooksPath=/dev/null -c advice.detachedHead=false \
+      clone --quiet --no-checkout -- "$1" "$CHECKOUT"
+}
+
+copy_hardened() {  # $1=source dir -> $CHECKOUT
+  local src="$1" pre_bytes pre_files
+  # Refuse before copying a single byte if the source is already over the
+  # ceiling — no point starting a doomed transfer. These pre-checks are
+  # themselves deadline-bounded: du/find don't follow symlinks by default, so
+  # a symlink loop can't spin them forever, but a pathological tree still
+  # shouldn't be allowed to stall this step past the same overall deadline.
+  pre_bytes=$(timeout "$AUDIT_STAGE_DEADLINE_SEC" du -sb -- "$src" 2>/dev/null | cut -f1)
+  pre_files=$(timeout "$AUDIT_STAGE_DEADLINE_SEC" find "$src" -type f 2>/dev/null | wc -l)
+  [[ -n $pre_bytes && -n $pre_files ]] || die "local dir aborted: could not measure $src within ${AUDIT_STAGE_DEADLINE_SEC}s" 3
+  (( pre_bytes <= AUDIT_STAGE_MAX_BYTES )) \
+    || die "local dir aborted: size ${pre_bytes} bytes exceeds ${AUDIT_STAGE_MAX_BYTES}" 3
+  (( pre_files <= AUDIT_STAGE_MAX_FILES )) \
+    || die "local dir aborted: file count ${pre_files} exceeds ${AUDIT_STAGE_MAX_FILES}" 3
+  rm -rf -- "$CHECKOUT"; mkdir -p -- "$CHECKOUT"
+  _bound_run "copy" "$CHECKOUT" -- cp -a -- "$src/." "$CHECKOUT/"
 }
 
 SCAN_COMMIT=""; DEFAULT_BRANCH=""; SCAN_SUBJECT=""; META_GIT=""; IS_LOCAL=0
@@ -197,8 +288,7 @@ if [[ -n $LOCAL_DIR ]]; then
   # any verified snapshot — so we never re-clone or re-pin here. REPO_URL, when
   # the folder has one, is used only for the catalog lookup above.
   IS_LOCAL=1
-  mkdir -p "$CHECKOUT"
-  cp -a "$LOCAL_DIR/." "$CHECKOUT/" 2>/dev/null || die "could not copy $LOCAL_DIR into the sandbox staging dir" 3
+  copy_hardened "$LOCAL_DIR" || die "could not copy $LOCAL_DIR into the sandbox staging dir" 3
   if git -C "$LOCAL_DIR" rev-parse --git-dir >/dev/null 2>&1; then
     SCAN_COMMIT=$(git -C "$LOCAL_DIR" rev-parse HEAD 2>/dev/null || echo "")
     SCAN_SUBJECT=$(git -C "$LOCAL_DIR" log -1 --format='%s' 2>/dev/null || echo "")
