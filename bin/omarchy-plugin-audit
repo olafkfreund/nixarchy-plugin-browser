@@ -364,8 +364,8 @@ else
       && git -C "$CHECKOUT" -c core.hooksPath=/dev/null -c user.name=nixarchy-plugin-fix \
            -c user.email=nobody@localhost commit --quiet -m "nixarchy-local: $(basename -- "$APPLY_PATCH")" \
       || die "could not commit the patch" 3
-    PATCH_BASE="$SCAN_COMMIT"
     SCAN_COMMIT=$(git -C "$CHECKOUT" rev-parse HEAD)
+    SCAN_SUBJECT=$(git -C "$CHECKOUT" log -1 --format='%s')
   fi
 fi
 
@@ -634,18 +634,24 @@ if (( DO_INSTALL )); then
     git -C "$add_src" -c advice.detachedHead=false checkout -B "$install_branch" "$SCAN_COMMIT" --quiet 2>/dev/null || true
     [[ -n $REPO_URL ]] && git -C "$add_src" remote set-url origin "$REPO_URL" 2>/dev/null || true
     say "  Installing the audited checkout (${SCAN_COMMIT:0:12}) — DISABLED, per Omarchy's review-first flow…"
-    if omarchy plugin add "$add_src" --yes; then
-      inst="$HOME/.config/omarchy/plugins/${PLUGIN_ID:-}"
-      if [[ -n $PLUGIN_ID && -d $inst/.git ]]; then
-        got=$(git -C "$inst" rev-parse HEAD 2>/dev/null)
-        if [[ $got == "$SCAN_COMMIT" ]]; then say "  ${GRN}✔ installed at the audited commit.${RST}"
-        else say "  ${YEL}⚠ installed HEAD ($got) differs from audited ($SCAN_COMMIT); inspect before enabling.${RST}"; fi
-        git -C "$inst" remote set-url origin "$REPO_URL" 2>/dev/null || true
-      fi
+    omarchy plugin add "$add_src" --yes; add_rc=$?
+    # `add` can place the plugin and fail afterwards (e.g. the shell rescan).
+    # Whenever the folder exists, point origin back at upstream (it is our
+    # deleted staging dir otherwise, and updates would never work) and check
+    # HEAD. Only then report how `add` itself ended.
+    inst="$HOME/.config/omarchy/plugins/${PLUGIN_ID:-}"
+    if [[ -n $PLUGIN_ID && -d $inst/.git ]]; then
+      git -C "$inst" remote set-url origin "$REPO_URL" 2>/dev/null || true
+      got=$(git -C "$inst" rev-parse HEAD 2>/dev/null)
+      if [[ $got == "$SCAN_COMMIT" ]]; then say "  ${GRN}✔ installed at the audited commit.${RST}"
+      else say "  ${YEL}⚠ installed HEAD ($got) differs from audited ($SCAN_COMMIT); inspect before enabling.${RST}"; fi
+    fi
+    if (( add_rc == 0 )); then
       say "  ${DIM}It is installed but NOT enabled. Enable it yourself when ready:${RST}"
       say "      ${CYN}omarchy plugin enable ${PLUGIN_ID:-<id>}${RST}"
     else
-      say "  ${RED}omarchy plugin add failed.${RST}"; OC_EXIT=$(( OC_EXIT<3?3:OC_EXIT ))
+      say "  ${RED}omarchy plugin add failed (exit $add_rc).${RST}"; OC_EXIT=$(( OC_EXIT<3?3:OC_EXIT ))
+      [[ -d ${inst:-/nonexistent} ]] && say "  ${YEL}It left the plugin at $inst (not enabled). Check it, or remove it: omarchy plugin remove ${PLUGIN_ID}${RST}"
     fi
   fi
 fi

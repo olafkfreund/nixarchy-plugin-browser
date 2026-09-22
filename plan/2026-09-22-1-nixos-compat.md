@@ -285,6 +285,17 @@ C5. End-to-end: run `nixarchy-plugin-fix <fixture-as-git-repo> --mode fix`
       unchanged.
     - Clean up with `omarchy plugin remove <fixture-id> --yes`.
 
+    *Found in C5:* `omarchy plugin add` can place the plugin and then fail
+    (seen here: its shell rescan cannot reach the IPC from a sandboxed
+    shell). The install tail then left `origin` pointing at the deleted
+    staging directory, so the plugin could never update. It now re-points
+    `origin` and checks HEAD whenever the plugin folder exists, and reports
+    the `add` failure separately. The subject line of a patched scan now
+    shows the patch commit.
+    *Run by the user:* the agent session itself (explain and fix with the
+    real default agent), because it needs an interactive terminal. C5 here
+    used a hand-written patch in place of the agent's edit.
+
 C6. Push, then open PR 2 linking the three artifacts and closing #1.
 
 ## Tests
