@@ -3,12 +3,12 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons
 import qs.Ui
+import "Model.js" as Model
 
-// Bar button for the plugin browser. One click opens a terminal running
-// `omarchy-plugin-browser`, the searchable marketplace TUI. The heavy UI and
-// every install path live in that script (and in `omarchy-plugin-audit`), so
-// this widget stays a thin launcher: no plugin data parsed inside the
-// long-lived shell process.
+// Bar button for the plugin browser. A click toggles the full-screen Plugin
+// Browser (Menu.qml, the same surface as Super+Alt+U and the Add Plugin menu
+// row); a right click opens the terminal TUI, `omarchy-plugin-browser`. This
+// widget stays a thin launcher: it parses no plugin data itself.
 //
 // Nothing is looked up on PATH and no shell string is built: the terminal is an
 // absolute path, the scripts are this plugin's own checkout run by an absolute
@@ -37,13 +37,15 @@ BarWidget {
   function launch() {
     if (updatePopup.open) updatePopup.open = false
     Quickshell.execDetached({
-      command: [
-        "/run/current-system/sw/bin/xdg-terminal-exec",
-        "--app-id=io.github.olafkfreund.nixarchy-plugin-browser",
-        "--title=Plugin Browser",
-        "-e",
-        "/run/current-system/sw/bin/bash", root.pluginDir + "/bin/omarchy-plugin-browser"
-      ],
+      command: Model.toggleArgv(root.moduleName),
+      environment: root.childEnv,
+      workingDirectory: root.home
+    })
+  }
+  function launchTui() {
+    if (updatePopup.open) updatePopup.open = false
+    Quickshell.execDetached({
+      command: Model.tuiArgv(root.pluginDir),
       environment: root.childEnv,
       workingDirectory: root.home
     })
@@ -108,9 +110,10 @@ BarWidget {
     text: ""                    // nf-fa-puzzle_piece
     slotSize: Style.bar.statusSlot
     fontSize: Style.font.caption
-    tooltipText: "Browse & audit plugins" + (root.updateAvailable ? " · Plugin Browser " + root.updateInfo.latest + " is available" : (root.updateMismatch ? " · finish updating" : ""))
-    onPressed: {
-      if (root.updatePending) updatePopup.open = !updatePopup.open
+    tooltipText: "Browse & audit plugins (Super+Alt+U) · right-click: terminal" + (root.updateAvailable ? " · Plugin Browser " + root.updateInfo.latest + " is available" : (root.updateMismatch ? " · finish updating" : ""))
+    onPressed: function(b) {
+      if (b === Qt.RightButton) root.launchTui()
+      else if (root.updatePending) updatePopup.open = !updatePopup.open
       else root.launch()
     }
     Rectangle {
