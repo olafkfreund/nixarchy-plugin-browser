@@ -11,6 +11,7 @@
 #   FIND<TAB>id<TAB>file:line<TAB>snippet     a documented finding
 #   CAP <TAB>id<TAB>file:line<TAB>snippet     a review-worthy capability
 #   INFO<TAB>id<TAB>file:line<TAB>snippet     informational evidence
+#   NIX <TAB>id<TAB>file:line<TAB>snippet     a NixOS-compatibility hazard
 #   STAT<TAB>key<TAB>value                     a scan statistic
 #   VALIDATE<TAB>ok|fail<TAB>message           omarchy-plugin-validate result
 #   OUTCOME<TAB>passed|review-required|needs-fixes|error
@@ -52,7 +53,7 @@ done < <(find "$TARGET" \( -name .git -o -name node_modules \) -prune -o \
 TEXT=()
 BIN_EXEC=()
 for f in "${ALL[@]}"; do
-  # `file` is under /usr, available in the sandbox.
+  # `file` comes from /run/current-system/sw, which the sandbox binds.
   desc=$(file -b -- "$f" 2>/dev/null)
   case "$desc" in
     *ELF*|*"PE32"*|*"Mach-O"*|*"executable"*binary*)
@@ -66,14 +67,17 @@ done
 stat files_total "${#ALL[@]}"
 stat files_text "${#TEXT[@]}"
 
-scan() {  # scan <kind> <id> <regex> [file-glob-filter-regex]
-  local kind="$1" id="$2" re="$3" filt="${4:-}"
+scan() {  # scan <kind> <id> <regex> [file-filter-regex] [ignore-regex]
+  # ignore-regex: text removed from a line before <regex> is tried again, so
+  # an allowed form (e.g. /usr/bin/env) does not count as a hit on its own.
+  local kind="$1" id="$2" re="$3" filt="${4:-}" ign="${5:-}"
   local hit
   for f in "${TEXT[@]}"; do
     [[ -n $filt && ! $f =~ $filt ]] && continue
     while IFS= read -r hit; do
       [[ -z $hit ]] && continue
       local ln="${hit%%:*}" rest="${hit#*:}"
+      [[ -n $ign ]] && ! sed -E "s#$ign##g" <<<"$rest" | grep -qE -- "$re" && continue
       local rel="${f#"$TARGET"/}"
       emit "$kind" "$id" "$rel:$ln" "$(printf '%s' "$rest" | sed -E 's/^[[:space:]]+//; s/[[:cntrl:]]/ /g' | cut -c1-200)"
     done < <(grep -nE "$re" -- "$f" 2>/dev/null | grep -vE '^\s*[0-9]+:\s*(#|//|\*|<!--)' )
@@ -179,6 +183,65 @@ done
 scan INFO process-spawn          '(Process[[:space:]]*\{|execDetached|Quickshell\.execDetached|IpcHandler|\.startDetached)' '\.qml$'
 scan INFO network-access         '(XMLHttpRequest|[^A-Za-z]fetch[[:space:]]*\(|https?://|curl|wget|Socket|WebSocket)' '\.(qml|js|mjs|sh|py)$'
 scan INFO filesystem-write       '(FileView|writeFile|std::ofstream|>[[:space:]]*\$?(HOME|~)|open\([^)]*[wa]["'\''])' '\.(qml|js|mjs|sh|py)$'
+
+# =============================================================================
+# NIXOS COMPATIBILITY  (does this run on NixOS? separate from the security
+# verdict; the outer audit maps each id to blocker/review)
+# =============================================================================
+# Code a plugin runs: QML/JS, shell, Python, and extensionless scripts.
+NIX_CODE='\.(qml|js|mjs|sh|py)$|/[^./]+$'
+
+# fhs-path: an absolute FHS path. NixOS has no /usr/bin/<tool>, no
+# /usr/share/omarchy ($OMARCHY_PATH is a store path) and no /usr/lib or /opt.
+# /usr/bin/env is the one path NixOS guarantees.
+scan NIX fhs-path \
+  '/usr/s?bin/[A-Za-z]|/usr/share/omarchy|/usr/lib/|(^|[^A-Za-z0-9_.~])/opt/' \
+  "$NIX_CODE" '/usr/bin/env'
+
+# fhs-shebang: an interpreter NixOS does not have at that path. #!/bin/sh and
+# #!/usr/bin/env are fine. (scan() skips # lines, so this reads line 1 itself.)
+for f in "${TEXT[@]}"; do
+  first=$(head -n1 -- "$f" 2>/dev/null)
+  if [[ $first =~ ^\#![[:space:]]*/(usr/)?bin/(bash|zsh|fish|python[0-9.]*|node|perl)([[:space:]]|$) ]]; then
+    emit NIX fhs-shebang "${f#"$TARGET"/}:1" "$(cut -c1-200 <<<"$first")"
+  fi
+done
+
+# imperative-pkg: Arch package managers, or Omarchy's pacman wrapper. On
+# nixarchy these either do not exist or refuse; packages are declared.
+scan NIX imperative-pkg '\b(pacman|yay|paru|makepkg)\b|omarchy[- ]pkg[- ](add|install)'
+
+# etc-write: /etc on NixOS is generated from the configuration and is mostly
+# read-only links into the store; a write there fails or is lost on rebuild.
+scan NIX etc-write '(tee|cp|install|mv|ln)[^|;]*[[:space:]]/etc/|>[[:space:]]*/etc/'
+
+# global-lang-install: pip outside a venv, npm -g. Both write where NixOS
+# either forbids it or loses it.
+for f in "${TEXT[@]}"; do
+  rel="${f#"$TARGET"/}"
+  if ! grep -q venv -- "$f" 2>/dev/null; then
+    while IFS= read -r hit; do
+      emit NIX global-lang-install "$rel:${hit%%:*}" "$(sed -E 's/^[[:space:]]+//' <<<"${hit#*:}" | cut -c1-200)"
+    done < <(grep -nE 'pip[0-9]?[[:space:]]+install' -- "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*(#|//|\*)')
+  fi
+  while IFS= read -r hit; do
+    emit NIX global-lang-install "$rel:${hit%%:*}" "$(sed -E 's/^[[:space:]]+//' <<<"${hit#*:}" | cut -c1-200)"
+  done < <(grep -nE 'npm[[:space:]]+(i|install)[[:space:]]+(-g|--global)' -- "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*(#|//|\*)')
+done
+
+# download-exec: fetches a file and marks it executable, i.e. runs a prebuilt
+# binary, which on NixOS needs nix-ld or patching.
+for f in "${TEXT[@]}"; do
+  grep -qE '(curl|wget)[^|]*(-o|-O|--output)' -- "$f" 2>/dev/null || continue
+  grep -qE 'chmod[[:space:]]+\+?[0-7]*x' -- "$f" 2>/dev/null || continue
+  ln=$(grep -nE '(curl|wget)[^|]*(-o|-O|--output)' -- "$f" | head -1 | cut -d: -f1)
+  emit NIX download-exec "${f#"$TARGET"/}:${ln:-1}" "downloads a file and makes it executable"
+done
+
+# bundled-elf: a shipped prebuilt binary; its interpreter path is not on NixOS.
+for f in "${BIN_EXEC[@]}"; do
+  emit NIX bundled-elf "${f#"$TARGET"/}:0" "prebuilt binary; needs nix-ld or autoPatchelf"
+done
 
 # =============================================================================
 # MANIFEST VALIDATION  (same check the shell enforces before loading)
