@@ -1,11 +1,14 @@
-# Omarchy Plugin Browser + Auditor
+# Nixarchy Plugin Browser + Auditor
+
+A fork of the Omarchy Plugin Browser for **nixarchy** (Omarchy on NixOS). It
+uses NixOS paths throughout and does not run on Arch Omarchy.
 
 Browse the Omarchy plugin marketplace from a terminal, and **audit any plugin in
 a sandbox before it touches your shell**.
 
 Omarchy shell plugins run as **unsandboxed code inside the long-lived
 `omarchy-shell` process**, with everything your user account can reach
-(`/usr/share/omarchy/shell/README.md`). `omarchy plugin add` clones a repo,
+(`$OMARCHY_PATH/shell/README.md`). `omarchy plugin add` clones a repo,
 validates its manifest, and lands it **disabled** so you can read it first — but
 it clones whatever is at the repo's mutable `HEAD`. The marketplace verifies an
 *exact commit*, and its own docs are explicit that the install command is **not
@@ -29,8 +32,26 @@ ask — hands that reviewed checkout to `omarchy plugin add`.
 ./install.sh --plugin   # also registers the bar widget (installed DISABLED)
 ```
 
-Requires `git jq curl file gum` and, for real isolation, `bwrap`
-(`omarchy pkg add bubblewrap`). Reverse everything with `./uninstall.sh`.
+Requires `git jq curl file gum` (all in nixarchy's base system) and `bwrap`,
+which the auditor refuses to run without:
+
+```bash
+nixarchy pkg add bubblewrap && nixarchy apply
+```
+
+Reverse everything with `./uninstall.sh`.
+
+### Moving from the old plugin id
+
+Versions before 0.3.0 used the upstream id `io.github.modpunk.plugin-browser`.
+The id changed with the fork, so an old install does not update itself. Move it
+once:
+
+```bash
+omarchy plugin remove io.github.modpunk.plugin-browser
+./install.sh --plugin
+omarchy plugin enable io.github.olafkfreund.nixarchy-plugin-browser
+```
 
 ### Updates
 
@@ -40,11 +61,11 @@ is out, a dot appears on the button and the next click shows what changed, from
 `CHANGELOG.md`. *Update…* opens a terminal that runs `omarchy plugin update`
 (it shows the diff and asks), then `install.sh` (asks again). *Later* hides
 that version. Set `"update_check": false` in
-`~/.config/omarchy-plugin-browser/config.json` to turn the check off. By hand:
+`~/.config/nixarchy-plugin-browser/config.json` to turn the check off. By hand:
 
 ```bash
-omarchy plugin update io.github.modpunk.plugin-browser
-~/.config/omarchy/plugins/io.github.modpunk.plugin-browser/install.sh
+omarchy plugin update io.github.olafkfreund.nixarchy-plugin-browser
+~/.config/omarchy/plugins/io.github.olafkfreund.nixarchy-plugin-browser/install.sh
 ```
 
 See [docs/update-alerts.md](docs/update-alerts.md) for how it is built.
@@ -82,10 +103,13 @@ against the real Omarchy 4.x plugin system:
    upstream HEAD; the report always says how many commits upstream is *past* the
    verified snapshot, because that newer code is covered by nothing.
 4. **Scan inside `bwrap`, not just "next to" it.** The sandbox has a read-only
-   view of the checkout, `--clearenv` with a minimal `PATH`/`HOME`, an empty
-   tmpfs home (so `~/.ssh` and friends are absent), and `--unshare-all` (no
-   network, no host PID namespace). The scanner reads files as text and **never
-   executes plugin code.**
+   view of the checkout, and of `/nix/store` and `/run/current-system/sw` (where
+   every NixOS tool, including the shell's validator, lives). It also has
+   `--clearenv` with `PATH=/run/current-system/sw/bin`, an empty tmpfs home (so
+   `~/.ssh` and friends are absent), and `--unshare-all` (no network, no host
+   PID namespace). Without `bwrap` the audit stops, unless you pass
+   `--no-sandbox`. The scanner reads files as text and **never executes plugin
+   code.**
 5. **Grep for the marketplace's own finding set**, by the same names, so results
    are comparable: `curl-pipe-shell`, `cargo-git-unpinned`,
    `remote-git-execution-unpinned`, `sudoers-dangerous-passwordless-command`,
