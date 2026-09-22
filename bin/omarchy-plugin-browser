@@ -13,10 +13,10 @@
 # Usage: omarchy-plugin-browser [--refresh] [--category <name>]
 set -uo pipefail
 
-# Only root-owned system directories, plus Omarchy's own commands: nothing this
+# Only root-owned NixOS directories (Omarchy's commands live in sw/bin): nothing this
 # script runs (git, jq, curl, bwrap, gum, omarchy) can be shadowed by an
 # executable placed earlier on someone's PATH.
-export PATH="/usr/local/bin:/usr/bin:/bin:/usr/share/omarchy/bin"
+export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-}/bin"
 
 CATALOG_URL="https://plugins.omarchy.org/catalog.json"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-plugin-audit"
@@ -166,7 +166,7 @@ run_audit() {  # $1 = id, validated to the plugin-id charset before use
   local id="$1"
   [[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { gum style --foreground 196 "  refusing suspicious id"; return; }
   echo
-  /usr/bin/bash "$AUDIT" "$id"   # runs in this same terminal; report stays on screen
+  /run/current-system/sw/bin/bash "$AUDIT" "$id"   # runs in this same terminal; report stays on screen
   echo
   gum input --placeholder "Enter to return to the list" >/dev/null 2>&1 || read -r _
 }

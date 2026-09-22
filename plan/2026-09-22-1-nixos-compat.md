@@ -75,7 +75,9 @@ A2. The same three runtime scripts (audit, browser, update.sh) get the fixed
     `PATH` export. In the audit, `OMARCHY_PATH`/`OMARCHY_BIN` default to
     `/run/current-system/sw` and `/run/current-system/sw/bin`. The browser's
     `run_audit` calls `/run/current-system/sw/bin/bash` instead of
-    `/usr/bin/bash`.
+    `/usr/bin/bash`. The same `/usr/bin/bash` swap applies to `lib/update.sh`
+    (the `run`/`terminal` argv), and the scanner's `OMARCHY_BIN` default
+    changes to match. `OMARCHY_PATH` is no longer read: nothing else used it.
     → verify: under `env -i HOME=$HOME USER=$USER`, `bin/omarchy-plugin-audit
     --help` prints the help, and the tool check at line 96 passes.
 

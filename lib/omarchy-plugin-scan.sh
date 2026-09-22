@@ -25,7 +25,7 @@
 set -o pipefail
 
 TARGET="${1:-/audit}"
-OMARCHY_BIN="${OMARCHY_BIN:-/usr/share/omarchy/bin}"
+OMARCHY_BIN="${OMARCHY_BIN:-/run/current-system/sw/bin}"
 
 emit() { printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "${4//$'\t'/ }"; }
 stat() { printf 'STAT\t%s\t%s\n' "$1" "$2"; }

@@ -22,7 +22,7 @@
 #
 # Every tool comes from root-owned system folders, never the caller's PATH.
 set -uo pipefail
-export PATH="/usr/share/omarchy/bin:/usr/local/bin:/usr/bin:/bin"
+export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-}/bin"
 
 UPD_SELF="$(readlink -f -- "${BASH_SOURCE[0]}")"
 UPD_DIR="$(cd -- "$(dirname -- "$UPD_SELF")/.." && pwd)"
@@ -164,11 +164,11 @@ cmd_run() {
   [[ $step == all || $step == install ]] || return 2
   if (( ${OMARCHY_PLUGIN_UPDATE_PRINT:-0} )); then
     jq -n --arg tui "$(command -v omarchy-launch-tui || echo omarchy-launch-tui)" --arg self "$UPD_SELF" --arg step "$step" \
-      '{argv: [$tui, "--app-id=TUI.float", "/usr/bin/bash", $self, "terminal", $step]}'
+      '{argv: [$tui, "--app-id=TUI.float", "/run/current-system/sw/bin/bash", $self, "terminal", $step]}'
     return 0
   fi
   command -v omarchy-launch-tui >/dev/null || { echo "update.sh: omarchy-launch-tui not found; run by hand: omarchy plugin update $UPD_ID" >&2; return 1; }
-  setsid -f omarchy-launch-tui --app-id=TUI.float /usr/bin/bash "$UPD_SELF" terminal "$step" >/dev/null 2>&1 </dev/null
+  setsid -f omarchy-launch-tui --app-id=TUI.float /run/current-system/sw/bin/bash "$UPD_SELF" terminal "$step" >/dev/null 2>&1 </dev/null
 }
 
 hold() { echo; read -rp "$1 Press Enter to close " _; }
