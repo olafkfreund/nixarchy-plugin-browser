@@ -66,9 +66,10 @@ SCANNER="$SELF_DIR/../lib/omarchy-plugin-scan.sh"
 [[ -f $SCANNER ]] || SCANNER="$SELF_DIR/omarchy-plugin-scan.sh"
 [[ -f $SCANNER ]] || die "scanner not found next to this script" 3
 
-CATALOG_URL="https://plugins.omarchy.org/catalog.json"
-CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-plugin-audit"
-CACHE_TTL=3600
+CATALOG_LIB="$SELF_DIR/../lib/catalog.sh"
+[[ -f $CATALOG_LIB ]] || CATALOG_LIB="$SELF_DIR/catalog.sh"
+# shellcheck source=../lib/catalog.sh
+source "$CATALOG_LIB" || die "catalog.sh not found next to this script" 3
 
 # Bounds enforced on the staging clone/copy below, BEFORE the sandbox starts
 # (HANCORE-linux's marketplace review, #5581 v2): a hostile or malfunctioning
@@ -125,44 +126,6 @@ if (( USE_SANDBOX )) && ! command -v "$BWRAP" >/dev/null; then
 fi
 
 # ---------------------------------------------------------------- catalog fetch
-CATALOG="$CACHE_DIR/catalog.json"
-CATALOG_RUNNER=()
-# The catalog is about 8 MB for ~3,100 plugins. Anything past this ceiling is
-# refused before it is parsed, so a broken or hostile endpoint can neither fill
-# the disk during the download nor hand jq an unbounded document.
-CATALOG_MAX_BYTES=$((32 * 1024 * 1024))
-
-# A cached catalog is only read if it is a regular file (not a symlink) owned by
-# this user and within the ceiling.
-catalog_usable() {
-  local f="$1" size
-  [[ -f $f && ! -L $f && -O $f ]] || return 1
-  size=$(stat -c %s -- "$f" 2>/dev/null) || return 1
-  (( size > 0 && size <= CATALOG_MAX_BYTES ))
-}
-
-# Download into a private temp file in the cache directory (mktemp creates it
-# exclusively, mode 600), check it, then rename it into place atomically.
-download_catalog() {
-  local dest="$1" dir tmp
-  dir=$(dirname -- "$dest")
-  mkdir -p -- "$dir" && chmod 700 -- "$dir" || return 1
-  tmp=$(mktemp -p "$dir" .catalog.XXXXXX) || return 1
-  if ! "${CATALOG_RUNNER[@]}" curl -fsS --proto '=https' --tlsv1.2 --max-time 30 \
-       --max-filesize "$CATALOG_MAX_BYTES" -o "$tmp" -- "$CATALOG_URL" 2>/dev/null \
-     || ! catalog_usable "$tmp" \
-     || ! jq -e '(.plugins | type) == "array"' "$tmp" >/dev/null 2>&1; then
-    rm -f -- "$tmp"
-    return 1
-  fi
-  mv -f -- "$tmp" "$dest"
-}
-fetch_catalog() {
-  catalog_usable "$CATALOG" \
-    && (( $(date +%s) - $(stat -c %Y -- "$CATALOG" 2>/dev/null || echo 0) < CACHE_TTL )) && return 0
-  command -v curl >/dev/null || return 1
-  download_catalog "$CATALOG"
-}
 catalog_entry() {  # by repo url (normalized) OR by id; echoes one JSON object
   catalog_usable "$CATALOG" || return 1
   jq -e --arg key "$1" '

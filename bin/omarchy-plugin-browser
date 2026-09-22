@@ -18,10 +18,6 @@ set -uo pipefail
 # executable placed earlier on someone's PATH.
 export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-}/bin"
 
-CATALOG_URL="https://plugins.omarchy.org/catalog.json"
-CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-plugin-audit"
-CATALOG="$CACHE_DIR/catalog.json"
-CACHE_TTL=3600
 SELF_DIR="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)"
 # The auditor that ships next to this script, never one found on PATH.
 AUDIT="$SELF_DIR/omarchy-plugin-audit"
@@ -39,49 +35,17 @@ done
 
 for t in jq curl gum; do command -v "$t" >/dev/null || { echo "browser: missing required tool: $t" >&2; exit 3; }; done
 
-# The spinner runs curl itself, so the download below stays one bounded argv.
+# The spinner runs curl itself, so the download stays one bounded argv.
+# shellcheck disable=SC2034  # read by lib/catalog.sh
 CATALOG_RUNNER=(gum spin --spinner dot --title "Fetching the marketplace catalog…" --)
-# The catalog is about 8 MB for ~3,100 plugins. Anything past this ceiling is
-# refused before it is parsed, so a broken or hostile endpoint can neither fill
-# the disk during the download nor hand jq an unbounded document.
-CATALOG_MAX_BYTES=$((32 * 1024 * 1024))
-
-# A cached catalog is only read if it is a regular file (not a symlink) owned by
-# this user and within the ceiling.
-catalog_usable() {
-  local f="$1" size
-  [[ -f $f && ! -L $f && -O $f ]] || return 1
-  size=$(stat -c %s -- "$f" 2>/dev/null) || return 1
-  (( size > 0 && size <= CATALOG_MAX_BYTES ))
-}
-
-# Download into a private temp file in the cache directory (mktemp creates it
-# exclusively, mode 600), check it, then rename it into place atomically.
-download_catalog() {
-  local dest="$1" dir tmp
-  dir=$(dirname -- "$dest")
-  mkdir -p -- "$dir" && chmod 700 -- "$dir" || return 1
-  tmp=$(mktemp -p "$dir" .catalog.XXXXXX) || return 1
-  if ! "${CATALOG_RUNNER[@]}" curl -fsS --proto '=https' --tlsv1.2 --max-time 30 \
-       --max-filesize "$CATALOG_MAX_BYTES" -o "$tmp" -- "$CATALOG_URL" 2>/dev/null \
-     || ! catalog_usable "$tmp" \
-     || ! jq -e '(.plugins | type) == "array"' "$tmp" >/dev/null 2>&1; then
-    rm -f -- "$tmp"
-    return 1
-  fi
-  mv -f -- "$tmp" "$dest"
-}
+# shellcheck source=../lib/catalog.sh
+source "$SELF_DIR/../lib/catalog.sh" || { echo "browser: lib/catalog.sh not found" >&2; exit 3; }
 
 fetch() {
-  if (( ! FORCE )) && catalog_usable "$CATALOG" \
-     && (( $(date +%s) - $(stat -c %Y -- "$CATALOG" 2>/dev/null || echo 0) < CACHE_TTL )); then return 0; fi
-  download_catalog "$CATALOG" && return 0
-  if catalog_usable "$CATALOG"; then
-    echo "browser: using stale cache." >&2
-  else
-    echo "browser: could not fetch a valid catalog (at most $((CATALOG_MAX_BYTES / 1048576)) MiB) and no cache present." >&2
-    exit 3
-  fi
+  local force=(); (( FORCE )) && force=(--force)
+  fetch_catalog "${force[@]}" && return 0
+  echo "browser: could not fetch a valid catalog (at most $((CATALOG_MAX_BYTES / 1048576)) MiB) and no cache present." >&2
+  exit 3
 }
 
 # Badge: ✔ verified snapshot & upstream matches · ◐ snapshot verified but upstream
