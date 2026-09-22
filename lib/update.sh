@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # update.sh — tell the user when a newer version of this plugin is published,
 # and help finish the update. The same file ships in every Omarchy.Fans plugin;

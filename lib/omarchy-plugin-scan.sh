@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # omarchy-plugin-scan.sh — static heuristic scanner for an Omarchy plugin tree.
 #

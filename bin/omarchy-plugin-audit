@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # omarchy-plugin-audit — inspect an Omarchy shell plugin before it touches your
 # desktop.

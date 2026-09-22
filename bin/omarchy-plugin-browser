@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # omarchy-plugin-browser — browse the Omarchy plugin marketplace from a
 # terminal, and audit anything before it touches your shell.

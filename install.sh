@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # Installs the Omarchy plugin browser + auditor.
 #

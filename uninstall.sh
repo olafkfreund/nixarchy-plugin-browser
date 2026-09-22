@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Reverses install.sh. Removes the CLI symlinks and, if present, the registered
 # bar widget. Leaves the cloned repo and the catalog cache in place.
 set -euo pipefail
