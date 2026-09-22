@@ -1,0 +1,14 @@
+-- io.github.olafkfreund.nixarchy-plugin-browser: open the Plugin Browser from
+-- the keyboard.
+--
+-- Lives in ~/.config/hypr/plugin-browser-binds.lua. With Nix, your flake writes
+-- it (home.file, as the README shows). Without Nix, copy this file there from
+-- the plugin folder. Either way, ~/.config/hypr/bindings.lua loads it with
+--
+--   pcall(require, "hypr.plugin-browser-binds")
+--
+-- pcall, not a bare require: bindings.lua is yours and outlives this file,
+-- and a missing module in a bare require takes the whole config down.
+--
+-- The description is what Omarchy's key bindings menu (Super+K) lists.
+o.bind("SUPER + ALT + U", "Plugin browser", "omarchy-shell shell toggle io.github.olafkfreund.nixarchy-plugin-browser '{}'")
