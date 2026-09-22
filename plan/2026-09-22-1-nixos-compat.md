@@ -85,9 +85,12 @@ A3. `bin/omarchy-plugin-audit`: make three changes.
     - Rewrite `run_sandboxed` with the new binds.
     - Fail closed when bwrap is missing.
     - Validate `--commit`.
+    - Accept `AUDIT_BWRAP=<path>` only when it resolves under `/nix/store`,
+      because the fixed PATH hides a `nix shell` bwrap and the check below
+      needs one. Also fix `die()`, which printed its exit code in the message.
 
     → verify:
-    - `nix shell nixpkgs#bubblewrap -c bin/omarchy-plugin-audit crmne.hyprmoncfg`
+    - `AUDIT_BWRAP=$(nix build --no-link --print-out-paths nixpkgs#bubblewrap)/bin/bwrap bin/omarchy-plugin-audit crmne.hyprmoncfg`
       runs sandboxed, and the report says `VALIDATE ok`.
     - Without bwrap, the audit exits 3. With `--no-sandbox` it runs.
     - `--commit 'x;y'` exits 2.
@@ -269,7 +272,7 @@ C6. Push, then open PR 2 linking the three artifacts and closing #1.
 | `for f in bin/* lib/*.sh install.sh uninstall.sh tests/*.sh; do bash -n "$f"; done` | no output |
 | `nix run nixpkgs#shellcheck -- -S warning bin/* lib/*.sh install.sh uninstall.sh tests/*.sh` | no new warnings compared with master |
 | `bash tests/scan-nix.sh` | `ok`, exit 0 |
-| `nix shell nixpkgs#bubblewrap -c bin/omarchy-plugin-audit crmne.hyprmoncfg` | sandboxed run, `VALIDATE ok`, NixOS section present |
+| `AUDIT_BWRAP=$(nix build --no-link --print-out-paths nixpkgs#bubblewrap)/bin/bwrap bin/omarchy-plugin-audit crmne.hyprmoncfg` | sandboxed run, `VALIDATE ok`, NixOS section present |
 | `bin/omarchy-plugin-audit crmne.hyprmoncfg` (no bwrap) | exit 3 with the nixarchy install hint |
 | `bin/omarchy-plugin-audit x --commit 'x;y'` | exit 2 |
 | `bin/omarchy-plugin-audit <fixture> --json --no-sandbox \| jq -r .nixosCompatibility.verdict` | `blocked` |

@@ -51,7 +51,7 @@ else BOLD=; DIM=; RED=; GRN=; YEL=; BLU=; CYN=; RST=; fi
 
 say()  { printf '%s\n' "$*"; }
 head2(){ printf '\n%s%s%s\n' "$BOLD" "$*" "$RST"; }
-die()  { printf '%saudit:%s %s\n' "$RED" "$RST" "$*" >&2; exit "${2:-2}"; }
+die()  { printf '%saudit:%s %s\n' "$RED" "$RST" "$1" >&2; exit "${2:-2}"; }
 
 OMARCHY_BIN="${OMARCHY_BIN:-/run/current-system/sw/bin}"
 SELF_DIR="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)"
@@ -88,13 +88,22 @@ while (( $# )); do
   esac
 done
 [[ -n $TARGET ]] || die "a git URL, plugin id, or local dir is required (see --help)"
+[[ -z $PIN_COMMIT || $PIN_COMMIT =~ ^[0-9a-f]{7,40}$ ]] || die "--commit must be a hex sha (7-40 chars)"
 [[ -n $PIN_COMMIT ]] && MODE_HEAD=0
 
 finish() { (( PAUSE )) && { printf '\n%sPress Enter to close…%s' "$DIM" "$RST"; read -r _ || true; }; exit "$1"; }
 
 for t in git jq find file grep du timeout setsid stat; do command -v "$t" >/dev/null || die "missing required tool: $t" 3; done
-if (( USE_SANDBOX )) && ! command -v bwrap >/dev/null; then
-  say "${YEL}bwrap not found — falling back to --no-sandbox.${RST}"; USE_SANDBOX=0
+# Fail closed: an audit that silently drops its sandbox is worse than none.
+# AUDIT_BWRAP may name a bwrap outside PATH (e.g. from `nix shell`), but only
+# a /nix/store one: immutable and root-owned, so it cannot be a planted binary.
+BWRAP=bwrap
+if [[ -n ${AUDIT_BWRAP:-} ]]; then
+  BWRAP=$(readlink -f -- "$AUDIT_BWRAP" 2>/dev/null)
+  [[ $BWRAP == /nix/store/* && -x $BWRAP ]] || die "AUDIT_BWRAP must be an executable under /nix/store" 2
+fi
+if (( USE_SANDBOX )) && ! command -v "$BWRAP" >/dev/null; then
+  die "bwrap not found. Install it: nixarchy pkg add bubblewrap && nixarchy apply  (or pass --no-sandbox, less safe)" 3
 fi
 
 # ---------------------------------------------------------------- catalog fetch
@@ -347,20 +356,21 @@ fi
 # ------------------------------------------------------------------- run scan
 RAW="$STAGE/scan.out"
 run_sandboxed() {
-  bwrap \
-    --ro-bind /usr /usr \
-    --symlink usr/lib /lib --symlink usr/lib /lib64 \
-    --symlink usr/bin /bin --symlink usr/bin /sbin \
-    --ro-bind-try /etc/alternatives /etc/alternatives \
+  # NixOS: every tool (bash, grep, file, omarchy-plugin-validate) is a
+  # /nix/store path reached through /run/current-system/sw, so those two are
+  # the whole read-only view of the system. There is no /usr to bind.
+  "$BWRAP" \
+    --ro-bind /nix/store /nix/store \
+    --ro-bind /run/current-system/sw /run/current-system/sw \
     --proc /proc --dev /dev \
     --tmpfs /tmp --tmpfs /home --dir /home/audit \
     --ro-bind "$CHECKOUT" /audit \
     --ro-bind "$SCANNER" /scan.sh \
     --clearenv \
-    --setenv PATH /usr/bin --setenv HOME /home/audit \
-    --setenv LANG C.UTF-8 --setenv OMARCHY_BIN "$OMARCHY_BIN" \
+    --setenv PATH /run/current-system/sw/bin --setenv HOME /home/audit \
+    --setenv LANG C.UTF-8 --setenv OMARCHY_BIN /run/current-system/sw/bin \
     --unshare-all --die-with-parent --new-session \
-    /usr/bin/bash /scan.sh /audit
+    /run/current-system/sw/bin/bash /scan.sh /audit
 }
 if (( USE_SANDBOX )); then
   run_sandboxed >"$RAW" 2>"$STAGE/scan.err" || { cat "$STAGE/scan.err" >&2; die "sandboxed scan failed" 3; }
