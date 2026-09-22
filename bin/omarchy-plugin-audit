@@ -391,6 +391,18 @@ elif (( n_cap > 0 )); then OUTCOME="review-required"; OC_COLOR=$YEL; OC_EXIT=10
 else OUTCOME="passed"; OC_COLOR=$GRN; OC_EXIT=0; fi
 [[ $V_RES == fail ]] && { OC_COLOR=$RED; OC_EXIT=$(( OC_EXIT<20?20:OC_EXIT )); }
 
+# NixOS compatibility: a second verdict on its own axis. It never touches
+# OC_EXIT, so the exit codes keep their security meaning.
+NIX_BLOCKERS="fhs-path fhs-shebang imperative-pkg"
+nix_sev() { [[ " $NIX_BLOCKERS " == *" $1 "* ]] && echo blocker || echo review; }
+n_nixb=0; n_nixr=0
+while IFS=$'\t' read -r _ nid _; do
+  if [[ $(nix_sev "$nid") == blocker ]]; then n_nixb=$((n_nixb + 1)); else n_nixr=$((n_nixr + 1)); fi
+done < <(grep $'^NIX\t' "$RAW")
+if (( n_nixb > 0 )); then NIX_VERDICT=blocked
+elif (( n_nixr > 0 )); then NIX_VERDICT=needs-review
+else NIX_VERDICT=likely-ok; fi
+
 # =============================================================================
 # JSON output
 # =============================================================================
@@ -401,6 +413,8 @@ if (( AS_JSON )); then
     --arg upstream "$UPSTREAM_OBSERVED" --arg vstatus "$VSTATUS" --arg vcover "$VCOVER" \
     --arg vmethod "$VMETHOD" --arg outcome "$OUTCOME" --arg validate "$V_RES" \
     --argjson nfind "$n_find" --argjson ncap "$n_cap" \
+    --arg nixverdict "$NIX_VERDICT" --argjson nixb "$n_nixb" --argjson nixr "$n_nixr" \
+    --argjson nixsev "$(jq -n --arg b "$NIX_BLOCKERS" '$b | split(" ") | map({(.): "blocker"}) | add')" \
     --rawfile raw "$RAW" '
     ($raw | split("\n") | map(select(length>0) | split("\t"))) as $rows
     | {
@@ -411,7 +425,12 @@ if (( AS_JSON )); then
       findingCount:$nfind, capabilityCount:$ncap,
       findings:   [ $rows[] | select(.[0]=="FIND") | {id:.[1], at:.[2], evidence:.[3]} ],
       capabilities:[ $rows[] | select(.[0]=="CAP")  | {id:.[1], at:.[2], evidence:.[3]} ],
-      info:       [ $rows[] | select(.[0]=="INFO") | {id:.[1], at:.[2], evidence:.[3]} ]
+      info:       [ $rows[] | select(.[0]=="INFO") | {id:.[1], at:.[2], evidence:.[3]} ],
+      nixosCompatibility: {
+        verdict:$nixverdict, blockers:$nixb, reviews:$nixr,
+        findings: [ $rows[] | select(.[0]=="NIX")
+                    | {id:.[1], severity:($nixsev[.[1]] // "review"), at:.[2], evidence:.[3]} ]
+      }
     }'
   finish "$OC_EXIT"
 fi
@@ -501,6 +520,24 @@ else
     printf '  %s◆%s %-30s %s×%s%s\n' "$YEL" "$RST" "$id" "$DIM" "$cnt" "$RST"
   done < <(grep $'^CAP\t' "$RAW" | cut -f2 | sort | uniq -c | awk '{print $2"\t"$1}')
 fi
+
+# NixOS compatibility (its own verdict; does not change the exit code)
+head2 "NixOS compatibility  ${DIM}(will it run on nixarchy?)${RST}"
+if (( n_nixb + n_nixr == 0 )); then
+  say "  ${GRN}no NixOS hazards found${RST}"
+else
+  while IFS=$'\t' read -r _ nid at ev; do
+    if [[ $(nix_sev "$nid") == blocker ]]; then g="$RED✘$RST"; else g="$YEL◆$RST"; fi
+    printf '  %s %s%-22s%s %s%s%s\n' "$g" "$BOLD" "$nid" "$RST" "$DIM" "$at" "$RST"
+    printf '      %s\n' "$ev"
+  done < <(grep $'^NIX\t' "$RAW")
+fi
+case "$NIX_VERDICT" in
+  likely-ok)    say "  NixOS: ${GRN}likely-ok${RST}" ;;
+  needs-review) say "  NixOS: ${YEL}needs-review${RST}  ${DIM}(${n_nixr} to check)${RST}" ;;
+  blocked)      say "  NixOS: ${RED}blocked${RST}  ${DIM}(${n_nixb} blocker(s), ${n_nixr} to check)${RST}" ;;
+esac
+[[ $NIX_VERDICT != likely-ok ]] && say "  ${DIM}Explain or fix it with your default agent:${RST} ${CYN}nixarchy-plugin-fix ${PLUGIN_ID:-$TARGET}${RST}"
 
 # symlink warning
 if [[ -n $SYMLINKS ]]; then
