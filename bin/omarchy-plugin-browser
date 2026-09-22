@@ -147,7 +147,7 @@ show_detail() {  # $1 = id
     "$(gum style --faint "repo  $repo")" \
     "$( [[ $avail != true && -n $note ]] && printf '\n%s' "$(gum style --foreground 214 "$(printf '%s' "note: $note" | fold -s -w 72)")" )"
 
-  local actions=("🛡  Audit before install (sandboxed scan)")
+  local actions=("🛡  Audit before install (sandboxed scan)" "🧩  NixOS check / fix with agent")
   [[ $avail == true && -n $install ]] && actions+=("📋  Copy install command")
   [[ -n $repo ]] && actions+=("🌐  Open repo in browser")
   actions+=("↩  Back")
@@ -156,10 +156,20 @@ show_detail() {  # $1 = id
   choice=$(printf '%s\n' "${actions[@]}" | gum choose --header "  $name") || return
   case "$choice" in
     🛡*) run_audit "$1" ;;
+    🧩*) run_fix "$1" ;;
     📋*) printf '%s' "$install" | wl-copy 2>/dev/null && gum style --foreground 42 "  Copied:  $install" || echo "  $install"; gum input --placeholder "Enter to continue" >/dev/null 2>&1 || read -r _ ;;
     🌐*) [[ $repo == https://github.com/* ]] && omarchy launch browser "$repo" >/dev/null 2>&1 & ;;
     *) return ;;
   esac
+}
+
+run_fix() {  # $1 = id; nixarchy-plugin-fix asks explain / fix / back itself
+  local id="$1"
+  [[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { gum style --foreground 196 "  refusing suspicious id"; return; }
+  echo
+  /run/current-system/sw/bin/bash "$SELF_DIR/nixarchy-plugin-fix" "$id"
+  echo
+  gum input --placeholder "Enter to return to the list" >/dev/null 2>&1 || read -r _
 }
 
 run_audit() {  # $1 = id, validated to the plugin-id charset before use

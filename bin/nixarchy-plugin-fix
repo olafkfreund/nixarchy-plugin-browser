@@ -46,6 +46,13 @@ for t in git jq gum omarchy-agent-prompt omarchy-default-agent; do
   command -v "$t" >/dev/null || die "missing required tool: $t" 3
 done
 
+agent=$(omarchy-default-agent 2>/dev/null)
+if [[ -z $agent ]]; then
+  echo "No default agent is set." >&2
+  echo "Choose one with: omarchy default agent <name>   (or Setup > Default Agent)" >&2
+  exit 1
+fi
+
 # ---- 1. audit, and export the exact tree it scanned -------------------------
 mkdir -p -- "$STATE" && chmod 700 -- "$STATE" || die "cannot create $STATE" 3
 TMP=$(mktemp -d -p "$STATE" .new.XXXXXX) || die "cannot create a workspace" 3
@@ -69,6 +76,11 @@ if [[ $NIXV == likely-ok ]]; then
 fi
 [[ -d $TMP/tree ]] || die "the audit did not export a tree" 3
 
+IDS=$(jq -r '[.nixosCompatibility.findings[].id | select(test("^[a-z-]+$"))] | unique | join(", ")' "$TMP/report.json")
+[[ -n $MODE ]] || MODE=$(gum choose --header "NixOS: $NIXV ($IDS). What should your agent do?" \
+  "explain" "fix" "back") || exit 0
+[[ $MODE == back ]] && exit 0
+
 # ---- 2. workspace ------------------------------------------------------------
 W="$STATE/$ID-${BASE:0:12}"; [[ -n $BASE ]] || W="$STATE/$ID-local"
 if [[ -e $W ]]; then
@@ -84,10 +96,6 @@ g init -q && g add -A && g commit -q -m baseline || die "could not record the ba
 BASE_REV=$(g rev-parse HEAD)
 
 # ---- 3. prompt: our ids and paths only, never the plugin's text -------------
-IDS=$(jq -r '[.nixosCompatibility.findings[].id | select(test("^[a-z-]+$"))] | unique | join(", ")' "$W/report.json")
-[[ -n $MODE ]] || MODE=$(gum choose --header "NixOS: $NIXV ($IDS). What should your agent do?" \
-  "explain" "fix" "back") || exit 0
-[[ $MODE == back ]] && exit 0
 
 preamble="You are working on a NixOS machine running Nixarchy. This machine is
 declarative: nothing is installed with a package manager, changes are made by
@@ -124,12 +132,6 @@ Fix the findings that are real problems on nixarchy, with the smallest changes.
 fi
 
 # ---- 4. launch the default agent --------------------------------------------
-agent=$(omarchy-default-agent 2>/dev/null)
-if [[ -z $agent ]]; then
-  echo "No default agent is set." >&2
-  echo "Choose one with: omarchy default agent <name>   (or Setup > Default Agent)" >&2
-  exit 1
-fi
 gum style --foreground 214 --border rounded --padding "0 1" \
   "Your default agent ($agent) runs with auto-approve on a copy of an UNTRUSTED plugin." \
   "It works in: $W/tree" \
