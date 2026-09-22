@@ -167,3 +167,35 @@ function tuiArgv(root) {
   return [SW + "xdg-terminal-exec", "--app-id=" + "io.github.olafkfreund.nixarchy-plugin-browser",
           "--title=Plugin Browser", "-e", BASH, root + "/bin/omarchy-plugin-browser"]
 }
+
+// The detail pane's report as flat lines ({text, tone, indent}), so the view
+// only repeats them. Evidence strings come from the plugin's own files: they
+// are cleaned and capped here and drawn as plain text.
+function reportLines(report) {
+  if (!report) return []
+  var out = []
+  function add(text, tone, indent) { out.push({ text: clean(text, 220), tone: tone || "", indent: indent || 0 }) }
+  var sec = verdictLabel(report.outcome)
+  add("Security: " + sec.text + (report.manifestValidate === "fail" ? " · manifest fails validation" : ""), sec.tone)
+  var finds = Array.isArray(report.findings) ? report.findings : []
+  for (var i = 0; i < finds.length && i < 12; i++)
+    add("● " + finds[i].id + "  " + finds[i].at + "  " + finds[i].evidence, "bad", 1)
+  if (finds.length > 12) add("… " + (finds.length - 12) + " more findings", "dim", 1)
+  var caps = {}
+  var capList = Array.isArray(report.capabilities) ? report.capabilities : []
+  for (var c = 0; c < capList.length; c++) caps[capList[c].id] = (caps[capList[c].id] || 0) + 1
+  var capIds = Object.keys(caps).sort()
+  if (capIds.length) add("Capabilities: " + capIds.map(function(k) { return k + " ×" + caps[k] }).join(", "), "warn", 1)
+  var nix = report.nixosCompatibility || {}
+  var nl = nixLabel(nix.verdict)
+  add(nl.text.charAt(0).toUpperCase() + nl.text.slice(1), nl.tone)
+  var nf = Array.isArray(nix.findings) ? nix.findings : []
+  for (var n = 0; n < nf.length && n < 12; n++)
+    add((nf[n].severity === "blocker" ? "✘ " : "◆ ") + nf[n].id + "  " + nf[n].at + "  " + nf[n].evidence,
+        nf[n].severity === "blocker" ? "bad" : "warn", 1)
+  if (nf.length > 12) add("… " + (nf.length - 12) + " more", "dim", 1)
+  var scanned = String(report.scannedCommit || ""), verified = String(report.verifiedCommit || "")
+  add("Scanned " + scanned.slice(0, 12) + (verified ? "   verified " + verified.slice(0, 12) : "   no verified commit on record"),
+      "dim")
+  return out
+}

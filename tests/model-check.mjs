@@ -8,7 +8,7 @@ import assert from "node:assert/strict"
 
 const src = readFileSync(new URL("../Model.js", import.meta.url), "utf8").replace(/^\.pragma library\s*$/m, "")
 const M = {}
-vm.runInNewContext(src + "\nObject.assign(M, {isSafeId, parsePayload, parseRows, filterRows, verdictLabel, nixLabel, parseReport, lastLines, clean, openArgv, agentArgv, auditArgv, installArgv, copyArgv, SHORTCUTS})", { M })
+vm.runInNewContext(src + "\nObject.assign(M, {isSafeId, parsePayload, parseRows, filterRows, verdictLabel, nixLabel, parseReport, lastLines, clean, openArgv, agentArgv, auditArgv, installArgv, copyArgv, SHORTCUTS, reportLines})", { M })
 
 // Values made inside the vm context have that realm's prototypes; compare as data.
 const j = (v) => JSON.parse(JSON.stringify(v))
@@ -44,6 +44,17 @@ assert.equal(M.nixLabel("likely-ok").tone, "good")
 assert.equal(M.parseReport("nope"), null)
 assert.equal(M.parseReport('{"outcome":"passed"}').outcome, "passed")
 assert.equal(M.lastLines("\u001b[32mone\u001b[0m\n\ntwo\nthree\n", 2), "two\nthree")
+
+// report lines
+const rep = { outcome: "review-required", manifestValidate: "ok", scannedCommit: "a".repeat(40), verifiedCommit: "",
+  findings: [], capabilities: [{ id: "privilege" }, { id: "privilege" }, { id: "installer" }],
+  nixosCompatibility: { verdict: "blocked", findings: [{ id: "fhs-path", severity: "blocker", at: "W.qml:2", evidence: "x\u0007y" }] } }
+const lines = j(M.reportLines(rep))
+assert.equal(lines[0].text, "Security: review required")
+assert.equal(lines[1].text, "Capabilities: installer \u00D71, privilege \u00D72")
+assert.equal(lines[2].tone, "bad")
+assert.ok(lines[3].text.startsWith("\u2718 fhs-path  W.qml:2  x y"), "blocker line, control char cleaned")
+assert.deepEqual(j(M.reportLines(null)), [])
 
 // argv: absolute, fixed, never a shell string
 const root = "/p"
