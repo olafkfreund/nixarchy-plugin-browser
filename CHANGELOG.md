@@ -9,6 +9,8 @@ when an update is available. Keep one short line per bullet.
 - The audit refuses to run without bwrap instead of quietly dropping the sandbox
 - Own id and update feed: io.github.olafkfreund.nixarchy-plugin-browser
 - Code files in docs/ and test/ folders are scanned too
+- Every audit shows whether the plugin will run on NixOS: likely-ok, needs-review or blocked
+- nixarchy-plugin-fix (and a browser action) hands the findings to your default agent to explain or fix a copy
 
 ## 0.2.2
 

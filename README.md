@@ -23,12 +23,13 @@ ask — hands that reviewed checkout to `omarchy plugin add`.
 |------|--------------|
 | `omarchy-plugin-browser` | Searchable TUI over the live marketplace catalog (`plugins.omarchy.org`). Never runs marketplace code — it reads names, authors, tags, verification status, and the install command as plain text. |
 | `omarchy-plugin-audit` | Clones a plugin into a `bwrap` sandbox with no network and an empty home, pins to the verified commit, greps for hostile patterns, runs the shell's own manifest validator, and prints a verdict. Optionally installs the vetted checkout (disabled). |
+| `nixarchy-plugin-fix` | Answers "will it run on nixarchy?" from the audit's NixOS verdict, and hands the findings to your default agent to explain them or fix a disposable copy. See [NixOS check and agent fixes](#nixos-check-and-agent-fixes). |
 | Bar widget | A puzzle-piece button in the bar that opens the browser in a terminal. A thin launcher; all the logic lives in the two scripts above. |
 
 ## Install
 
 ```bash
-./install.sh            # symlinks the two CLI tools into ~/.local/bin
+./install.sh            # symlinks the three CLI tools into ~/.local/bin
 ./install.sh --plugin   # also registers the bar widget (installed DISABLED)
 ```
 
@@ -83,6 +84,59 @@ omarchy-plugin-audit <id> --json       # machine-readable report
 ```
 
 Exit codes: `0` clean · `10` review-required · `20` findings · `2` usage · `3` scan error.
+
+## NixOS check and agent fixes
+
+Every audit also prints a **NixOS compatibility** section and a verdict. The
+verdict is separate from the security one and never changes the exit code:
+
+| Verdict | Meaning |
+|---------|---------|
+| `likely-ok` | none of the NixOS rules matched |
+| `needs-review` | something that often works on nixarchy, but not always |
+| `blocked` | a path nixarchy does not have (`/usr/share/*`, `/usr/lib/*`, `/opt/*`) |
+
+nixarchy enables envfs, so `#!/bin/bash` and `/usr/bin/<cmd>` work as long as
+`<cmd>` is installed. Those, Arch package managers in code, `/etc` writes,
+global pip/npm installs, downloaded executables and bundled binaries are
+`needs-review`. Tests, benchmarks, docs and Makefiles are not checked for
+NixOS; they are still scanned for security. `--json` carries the same data
+as `nixosCompatibility`.
+
+When the verdict is not `likely-ok`, hand it to the agent you chose with
+`omarchy default agent`. The browser has this as an action, "🧩 NixOS check /
+fix with agent", or you can run it directly:
+
+```bash
+nixarchy-plugin-fix <plugin-id | git-url | dir>               # asks: explain / fix
+nixarchy-plugin-fix crmne.hyprmoncfg --mode explain
+```
+
+- **explain:** the agent reads the `nixarchy` and `nixos-binaries` skills,
+  then explains each finding and the exact change it needs. It edits nothing.
+- **fix:** the agent edits a copy. You then see the diff, and the copy is
+  audited again; it is refused if it audits worse. The patch is saved, and you
+  choose **Install patched** (a fresh clone at the audited commit, the patch
+  committed on branch `nixarchy-local`, scanned, installed disabled), **Keep
+  patch only**, or **Discard**. Packages the plugin needs are listed as
+  `nixarchy pkg add` lines, never installed.
+
+| What | Where |
+|------|-------|
+| Workspace (copy, report, baseline) | `~/.local/state/nixarchy-plugin-browser/work/<id>-<sha12>/` |
+| Saved patches | `~/.local/share/nixarchy-plugin-browser/patches/<id>/<base-sha>.patch` |
+
+**The risk that remains.** The plugin is untrusted, and your default agent
+runs with its auto-approve flags. The agent works on a copy with no `.git`,
+the plugin's own text never goes into the prompt, and nothing is installed
+without a re-audit and your choice. But while the agent session runs, a
+prompt injection hidden in the plugin could still make it run commands as you.
+You are asked to confirm before it starts.
+
+**After an update.** A patched plugin sits on a local commit, so
+`omarchy plugin update <id>` stops (it only fast-forwards) and changes
+nothing. Run `nixarchy-plugin-fix <id>` again. The saved patch is in the
+folder above if you want to reuse it.
 
 ## How the audit works — the corrected step list
 
@@ -157,8 +211,10 @@ manifest.json                 bar-widget manifest (schemaVersion 1)
 BarWidget.qml                 the bar button (launches the browser)
 bin/omarchy-plugin-browser    marketplace TUI
 bin/omarchy-plugin-audit      sandboxed auditor / installer
+bin/nixarchy-plugin-fix       NixOS check → default agent (explain / fix a copy)
 lib/omarchy-plugin-scan.sh    the in-sandbox scanner
 install.sh · uninstall.sh     symlink the tools; optionally register the widget
+tests/scan-nix.sh             self-check for the NixOS scanner rules
 ```
 
 ## License

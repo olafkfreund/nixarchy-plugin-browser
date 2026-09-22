@@ -5,7 +5,7 @@ set -euo pipefail
 REPO="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$HOME/.local/bin"
 
-for tool in omarchy-plugin-audit omarchy-plugin-browser; do
+for tool in omarchy-plugin-audit omarchy-plugin-browser nixarchy-plugin-fix; do
   if [[ -L "$BIN_DIR/$tool" ]]; then rm -f "$BIN_DIR/$tool"; echo "  removed $BIN_DIR/$tool"; fi
 done
 

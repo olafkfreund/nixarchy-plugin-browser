@@ -2,11 +2,12 @@
 #
 # Installs the Omarchy plugin browser + auditor.
 #
-# By default it only symlinks the two CLI tools into ~/.local/bin — no system
+# By default it only symlinks the three CLI tools into ~/.local/bin — no system
 # files touched, nothing enabled, fully reversible with ./uninstall.sh:
 #
 #   omarchy-plugin-browser   the searchable marketplace TUI
 #   omarchy-plugin-audit     the sandboxed, commit-pinned static scanner
+#   nixarchy-plugin-fix      NixOS check; hands findings to your default agent
 #
 # With --plugin it also registers the bar widget through `omarchy plugin add`,
 # which lands it DISABLED (Omarchy's review-first flow). You enable it yourself.
@@ -43,7 +44,7 @@ command -v bwrap >/dev/null || say "install.sh: note — bwrap not found; the au
 
 # --- 1. CLI tools ------------------------------------------------------------
 mkdir -p "$BIN_DIR"
-for tool in omarchy-plugin-audit omarchy-plugin-browser; do
+for tool in omarchy-plugin-audit omarchy-plugin-browser nixarchy-plugin-fix; do
   src="$REPO/bin/$tool"
   [[ -f $src ]] || fail "$src not found"
   chmod +x "$src"
@@ -81,6 +82,7 @@ Installed.
 
   Browse the marketplace:   omarchy-plugin-browser
   Audit one plugin:         omarchy-plugin-audit <git-url | plugin-id | dir>
+  Will it run on nixarchy?  nixarchy-plugin-fix <git-url | plugin-id | dir>
 
 The browser never runs marketplace code; every install routes through the
 auditor, which clones into a bwrap sandbox, pins to the marketplace's verified
