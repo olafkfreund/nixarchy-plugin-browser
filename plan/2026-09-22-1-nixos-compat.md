@@ -134,6 +134,13 @@ A8. Push the branch and open PR 1, linking the intent, spec and plan and
     it is installed at the new id.
     → verify: the PR exists and the diff matches steps A1–A7.
 
+A9. (Found while testing A8 with the system bwrap.) `bin/omarchy-plugin-audit`:
+    make the staging tree writable in the EXIT trap before `rm -rf`. Plugins
+    installed from `/nix/store` (such as `nixarchy.*`) keep their read-only
+    modes through `cp -a`, so the cleanup failed and leaked `/tmp/omarchy-audit.*`.
+    → verify: audit `~/.config/omarchy/plugins/nixarchy.devenv`. There is no
+    `Permission denied`, and no `/tmp/omarchy-audit.*` is left behind.
+
 ### Phase B: NixOS pass (PR 2)
 
 B1. `lib/omarchy-plugin-scan.sh`: add the `NIX` rules through `scan NIX <id>

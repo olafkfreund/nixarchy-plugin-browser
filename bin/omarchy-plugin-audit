@@ -5,7 +5,7 @@
 #
 # Omarchy plugins run as unsandboxed code inside the long-lived omarchy-shell
 # process, with everything your user account can reach (see
-# `/usr/share/omarchy/shell/README.md`). `omarchy plugin add` clones the repo,
+# `$OMARCHY_PATH/shell/README.md`). `omarchy plugin add` clones the repo,
 # validates the manifest, and lands it DISABLED so you can read it first. This
 # tool does the reading for you: it clones into a throwaway directory, pins the
 # checkout to the marketplace's *verified* commit when there is one, greps the
@@ -195,7 +195,9 @@ CAT_NAME=$(jq -r '.name // ""' <<<"${ENTRY:-{}}" 2>/dev/null)
 
 # ------------------------------------------------------------------- staging
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/omarchy-audit.XXXXXX")"
-trap 'rm -rf "$STAGE"' EXIT
+# A plugin copied from /nix/store keeps its read-only modes (cp -a); make the
+# tree writable first or rm cannot unlink it and the stage leaks into /tmp.
+trap 'chmod -R u+w -- "$STAGE" 2>/dev/null; rm -rf -- "$STAGE"' EXIT
 CHECKOUT="$STAGE/tree"
 
 # HANCORE-linux's marketplace review (#5581 v2): bin/omarchy-plugin-audit's
