@@ -221,6 +221,14 @@ C1. `bin/omarchy-plugin-audit`: add two internal flags.
       `needs-fixes`. From there the existing install tail runs, and it checks
       HEAD against the patched commit.
 
+    *As built:* the patch is applied in the audit's own hardened clone right
+    after checkout and **before** the scan and symlink detection. The normal
+    scan therefore covers the patched tree, the `needs-fixes` gate applies to
+    it, and the existing install tail (on branch `nixarchy-local`) and HEAD
+    check work unchanged. No second clone is needed. `--apply-patch` is
+    refused for a local folder. `--export-tree` also refuses an existing
+    directory and any symlink, and makes the copy writable, because a
+    `/nix/store` source is read-only.
     → verify: `--export-tree` on the fixture produces a tree with no `.git`.
     `--apply-patch` with a bad patch exits 3 before anything is installed.
 
