@@ -13,7 +13,7 @@ cat >"$FX/catalog.json" <<'EOF'
   { "id": "a.low", "name": "Low", "author": "ann", "category": "System", "stars": 3,
     "tags": ["x"], "sourceType": "community", "verificationStatus": "unverified",
     "description": "low one", "repo": "https://github.com/a/low", "installCommand": "omarchy plugin add https://github.com/a/low",
-    "installAvailable": true },
+    "installAvailable": true, "previewThumbnail": "assets/img/plugins/1-a-low-card.webp" },
   { "id": "omarchy.clock", "name": "Clock", "stars": 999, "sourceType": "first-party" },
   { "id": "b.high", "author": "bob", "stars": 50, "sourceType": "community",
     "verificationSnapshotStatus": "verified", "tags": [] }
@@ -31,5 +31,6 @@ check "badge from verification"   '.[0].badge == "snapshot" and .[1].badge == "u
 check "fields present"            '.[1] | .author == "ann" and .category == "System" and .tags == ["x"]
                                    and .repo == "https://github.com/a/low" and .installAvailable == true
                                    and (.installCommand | startswith("omarchy plugin add"))'
+check "preview passed through"    '.[1].preview == "assets/img/plugins/1-a-low-card.webp" and .[0].preview == ""'
 check "defaults for missing"      '.[0] | .category == "" and .description == "" and .installAvailable == false'
 echo ok

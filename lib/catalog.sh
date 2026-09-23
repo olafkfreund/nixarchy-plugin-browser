@@ -11,6 +11,8 @@
 # TUI's gum spinner); the download stays one bounded curl argv either way.
 #
 # Run directly by the shell panel:
+#   catalog.sh preview <relpath>   one plugin's preview thumbnail as a verified
+#                                  local file path (see "previews" below)
 #   catalog.sh list [--refresh]    community plugins as one compact JSON array,
 #                                  most-starred first, so the shell never parses
 #                                  the full ~8 MB catalog itself
@@ -63,6 +65,69 @@ fetch_catalog() {
   echo "catalog: could not refresh; using the cached copy." >&2
 }
 
+# ---- previews ----------------------------------------------------------------
+# A plugin's preview thumbnail, fetched only when its details are opened, and
+# handed to the shell only as a local file that has passed every check below:
+# the shell never decodes bytes straight from the network.
+PREVIEW_HOST="https://plugins.omarchy.org"
+PREVIEW_DIR="$CACHE_DIR/previews"
+PREVIEW_MAX_BYTES=$((2 * 1024 * 1024))     # the real thumbnails are ~20-100 KB
+PREVIEW_CACHE_MAX=$((50 * 1024 * 1024))
+PREVIEW_RE='^assets/img/plugins/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(webp|png)$'
+PREVIEW_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/nixarchy-plugin-browser/config.json"
+
+# "previews": false in the plugin's config turns fetching off entirely.
+previews_enabled() {
+  [[ -f $PREVIEW_CONFIG ]] || return 0
+  [[ $(jq -r '.previews' "$PREVIEW_CONFIG" 2>/dev/null) != false ]]
+}
+
+# Only the marketplace's own image folder; the host is never taken from input.
+preview_path_ok() { [[ $1 =~ $PREVIEW_RE ]]; }
+
+# A regular, own, non-empty file within the ceiling, whose first bytes are what
+# its extension says: RIFF....WEBP for .webp, the PNG signature for .png.
+preview_file_ok() {  # preview_file_ok <file> <webp|png>
+  local f="$1" ext="$2" size magic
+  [[ -f $f && ! -L $f && -O $f ]] || return 1
+  size=$(stat -c %s -- "$f" 2>/dev/null) || return 1
+  (( size > 0 && size <= PREVIEW_MAX_BYTES )) || return 1
+  magic=$(head -c 12 -- "$f" | od -An -v -tx1 | tr -d ' \n')
+  case "$ext" in
+    webp) [[ ${magic:0:8} == 52494646 && ${magic:16:8} == 57454250 ]] ;;
+    png)  [[ ${magic:0:16} == 89504e470d0a1a0a ]] ;;
+    *)    return 1 ;;
+  esac
+}
+
+# Keep the cache under its cap, oldest files first.
+prune_previews() {
+  local oldest
+  while (( $(du -sb -- "$PREVIEW_DIR" 2>/dev/null | cut -f1) > PREVIEW_CACHE_MAX )); do
+    oldest=$(ls -tr -- "$PREVIEW_DIR" | head -n1)
+    [[ -n $oldest ]] || break
+    rm -f -- "$PREVIEW_DIR/$oldest"
+  done
+}
+
+fetch_preview() {  # fetch_preview <relpath>; prints the verified local path
+  local rel="$1" name ext dest tmp
+  previews_enabled || { echo "catalog: previews are off" >&2; return 4; }
+  preview_path_ok "$rel" || { echo "catalog: not a marketplace preview path: $rel" >&2; return 2; }
+  name=${rel##*/}; ext=${name##*.}; dest="$PREVIEW_DIR/$name"
+  if preview_file_ok "$dest" "$ext"; then printf '%s\n' "$dest"; return 0; fi
+  mkdir -p -- "$PREVIEW_DIR" && chmod 700 -- "$PREVIEW_DIR" || return 3
+  tmp=$(mktemp -p "$PREVIEW_DIR" .preview.XXXXXX) || return 3
+  if ! curl -fsS --proto '=https' --tlsv1.2 --max-time 15 \
+         --max-filesize "$PREVIEW_MAX_BYTES" -o "$tmp" -- "$PREVIEW_HOST/$rel" 2>/dev/null \
+     || ! preview_file_ok "$tmp" "$ext"; then
+    rm -f -- "$tmp"; echo "catalog: preview fetch or check failed: $rel" >&2; return 3
+  fi
+  mv -f -- "$tmp" "$dest"
+  prune_previews
+  printf '%s\n' "$dest"
+}
+
 # ---- run directly -----------------------------------------------------------
 if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   set -uo pipefail
@@ -80,8 +145,10 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
                       elif .verificationSnapshotStatus == "verified" then "snapshot"
                       else "unverified" end),
               description: (.description // ""), repo: (.repo // ""),
-              installCommand: (.installCommand // ""), installAvailable: (.installAvailable == true) } ]
+              installCommand: (.installCommand // ""), installAvailable: (.installAvailable == true),
+              preview: (.previewThumbnail // "") } ]
         | sort_by(-.stars)' "$CATALOG" ;;
-    *) echo "usage: catalog.sh list [--refresh]" >&2; exit 2 ;;
+    preview) fetch_preview "${2:-}"; exit $? ;;
+    *) echo "usage: catalog.sh list [--refresh] | catalog.sh preview <relpath>" >&2; exit 2 ;;
   esac
 fi
