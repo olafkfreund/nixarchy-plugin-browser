@@ -9,6 +9,8 @@ baseurl: "/nixarchy-plugin-browser"
 
 include:
   - manual
+exclude:
+  - update-alerts.md   # a design note for contributors, linked from the README
 
 defaults:
   - scope:
