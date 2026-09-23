@@ -9,6 +9,7 @@ when an update is available. Keep one short line per bullet.
 - Opening a plugin shows its security and NixOS verdicts; e / f hand it to your agent, i installs it disabled
 - The bar button opens the panel; right-click it for the terminal browser
 - Can replace Setup → Plugins → Add Plugin (see the README for the flake lines)
+- Installable with Nix: a flake with the plugin, the tools and a keybinding module
 
 ## 0.3.0
 

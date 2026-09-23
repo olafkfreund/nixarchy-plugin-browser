@@ -49,6 +49,40 @@ After `./install.sh --plugin`, enable it so the shell can open the panel:
 omarchy plugin enable io.github.olafkfreund.nixarchy-plugin-browser
 ```
 
+### Install with Nix
+
+The repository is a flake. On nixarchy, declare the plugin with nixarchy's
+own option. It links the plugin read-only into `~/.config/omarchy/plugins/`
+and validates it when you rebuild:
+
+```nix
+# flake.nix inputs
+nixarchy-plugin-browser.url = "github:olafkfreund/nixarchy-plugin-browser";
+
+# a Home Manager module
+{ inputs, pkgs, ... }:
+let pb = inputs.nixarchy-plugin-browser; sys = pkgs.stdenv.hostPlatform.system; in
+{
+  imports = [ pb.homeManagerModules.default ];        # optional: the Super+Alt+U binds file
+  programs.nixarchy.plugins.plugin-browser.src = pb.packages.${sys}.default;
+  home.packages = [ pb.packages.${sys}.cli ];         # optional: the three tools on PATH
+  # programs.nixarchy-plugin-browser.keybinding = "SUPER + ALT + U";  # null for none
+}
+```
+
+Then enable it once: `omarchy plugin enable io.github.olafkfreund.nixarchy-plugin-browser`.
+Your `bindings.lua` still needs `pcall(require, "hypr.plugin-browser-binds")`.
+
+| Output | What it is |
+|--------|------------|
+| `packages.<system>.default` (`.plugin`) | the plugin folder, runtime files only |
+| `packages.<system>.cli` | `omarchy-plugin-audit`, `omarchy-plugin-browser`, `nixarchy-plugin-fix` |
+| `homeManagerModules.default` | `programs.nixarchy-plugin-browser.keybinding`, which writes the binds file |
+
+To update, run `nix flake update nixarchy-plugin-browser` and rebuild. The bar
+still tells you when a new version is out, but on a Nix install it points
+here instead of offering its own Update button.
+
 ### Moving from the old plugin id
 
 Versions before 0.3.0 used the upstream id `io.github.modpunk.plugin-browser`.
@@ -288,6 +322,7 @@ lib/omarchy-plugin-scan.sh    the in-sandbox scanner
 install.sh · uninstall.sh     symlink the tools; optionally register the widget
 tests/scan-nix.sh             self-check for the NixOS scanner rules
 tests/catalog-list.sh         self-check for catalog.sh list
+flake.nix · flake.lock        Nix packages (plugin, cli), keybinding module, checks
 ```
 
 ## License
