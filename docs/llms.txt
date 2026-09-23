@@ -1,0 +1,25 @@
+# nixarchy.plugin-browser
+
+> Browse the Omarchy plugin marketplace from the keyboard, and audit any
+> plugin in a bubblewrap sandbox before it is installed: a security verdict
+> and a NixOS-compatibility verdict. It installs plugins disabled, pinned to
+> the audited commit, and can hand NixOS findings to the default agent to
+> explain or fix a copy. On nixarchy it is the panel behind
+> Setup ▸ Plugins ▸ Add Plugin.
+
+## Manual
+
+- [What this is](https://olafkfreund.github.io/nixarchy-plugin-browser/manual/): the problem, and every page
+- [Getting started](https://olafkfreund.github.io/nixarchy-plugin-browser/manual/getting-started): on nixarchy, with the flake, or by hand
+- [The panel](https://olafkfreund.github.io/nixarchy-plugin-browser/manual/the-panel): searching, the details, every key, script payloads
+- [The audit](https://olafkfreund.github.io/nixarchy-plugin-browser/manual/the-audit): the sandbox, the security verdict, the NixOS verdict
+- [Asking your agent](https://olafkfreund.github.io/nixarchy-plugin-browser/manual/the-agent): e and f, what the agent gets, the remaining risk
+- [Installing a plugin](https://olafkfreund.github.io/nixarchy-plugin-browser/manual/installing): disabled, pinned installs, and adding by URL
+- [Previews and privacy](https://olafkfreund.github.io/nixarchy-plugin-browser/manual/previews-and-privacy): what is fetched, preview checks, the off switches
+- [From a terminal](https://olafkfreund.github.io/nixarchy-plugin-browser/manual/from-a-terminal): omarchy-plugin-browser, omarchy-plugin-audit, nixarchy-plugin-fix
+- [Troubleshooting](https://olafkfreund.github.io/nixarchy-plugin-browser/manual/troubleshooting): re-login, bwrap, keys, restarts
+
+## Source
+
+- [Repository](https://github.com/olafkfreund/nixarchy-plugin-browser)
+- [nixarchy](https://olafkfreund.github.io/nixarchy/)
