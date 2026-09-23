@@ -11,7 +11,9 @@ From the nixarchy release that ships it
 Plugin Browser is one of nixarchy's **default plugins**: installed, with
 its command-line tools and bubblewrap, and turned on at your first login.
 Open it from **Setup ▸ Plugins ▸ Add Plugin**. Upstream's Git-URL prompt
-is still there, one row down, as **Add Plugin from URL**.
+is still there as **Add Plugin from URL**.
+
+![Setup ▸ Plugins: Add Plugin opens the browser, and Add Plugin from URL keeps the old prompt](../img/10-add-plugin-row.webp)
 
 - **Super+Alt+U** is seeded into `~/.config/hypr/bindings.lua` on **new**
   installs. nixarchy never edits that file afterwards, so on an existing
