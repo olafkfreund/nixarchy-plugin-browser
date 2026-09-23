@@ -8,7 +8,7 @@ import assert from "node:assert/strict"
 
 const src = readFileSync(new URL("../Model.js", import.meta.url), "utf8").replace(/^\.pragma library\s*$/m, "")
 const M = {}
-vm.runInNewContext(src + "\nObject.assign(M, {isSafeId, parsePayload, parseRows, filterRows, verdictLabel, nixLabel, parseReport, lastLines, clean, openArgv, agentArgv, auditArgv, installArgv, copyArgv, SHORTCUTS, reportLines})", { M })
+vm.runInNewContext(src + "\nObject.assign(M, {isSafeId, parsePayload, parseRows, filterRows, verdictLabel, nixLabel, parseReport, lastLines, clean, openArgv, agentArgv, auditArgv, installArgv, copyArgv, SHORTCUTS, reportLines, previewArgv, isPreviewPath})", { M })
 
 // Values made inside the vm context have that realm's prototypes; compare as data.
 const j = (v) => JSON.parse(JSON.stringify(v))
@@ -55,6 +55,17 @@ assert.equal(lines[1].text, "Capabilities: installer \u00D71, privilege \u00D72"
 assert.equal(lines[2].tone, "bad")
 assert.ok(lines[3].text.startsWith("\u2718 fhs-path  W.qml:2  x y"), "blocker line, control char cleaned")
 assert.deepEqual(j(M.reportLines(null)), [])
+
+// previews: same allowlist as catalog.sh
+const good = "assets/img/plugins/5-crmne-omarchy-hyprmoncfg-card.webp"
+assert.ok(M.isPreviewPath(good))
+for (const bad of ["../x.webp", "https://evil/x.webp", "assets/img/plugins/x.webp?y", "assets/img/other/x.webp", "assets/img/plugins/x.svg", "", null])
+  assert.ok(!M.isPreviewPath(bad), `bad preview accepted: ${bad}`)
+assert.equal(M.previewArgv("/p", "../x.webp"), null)
+assert.deepEqual(j(M.previewArgv("/p", good)), ["/run/current-system/sw/bin/bash", "/p/lib/catalog.sh", "preview", good])
+const prow = j(M.parseRows(JSON.stringify([{ id: "a.b", preview: good }, { id: "c.d", preview: "https://evil/x.webp" }])))
+assert.equal(prow[0].preview, good)
+assert.equal(prow[1].preview, "", "an unsafe preview path is dropped")
 
 // argv: absolute, fixed, never a shell string
 const root = "/p"

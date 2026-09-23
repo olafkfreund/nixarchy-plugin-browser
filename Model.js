@@ -40,6 +40,12 @@ var SHORTCUTS = [
 ]
 
 var ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
+// The same allowlist lib/catalog.sh enforces before it fetches anything.
+var PREVIEW_RE = /^assets\/img\/plugins\/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(webp|png)$/
+
+function isPreviewPath(p) {
+  return typeof p === "string" && PREVIEW_RE.test(p)
+}
 
 function isSafeId(id) {
   return typeof id === "string" && ID_RE.test(id)
@@ -81,7 +87,8 @@ function parseRows(text) {
       category: clean(r.category, 40), stars: Number(r.stars) || 0, tags: tags,
       badge: (r.badge === "verified" || r.badge === "snapshot") ? r.badge : "unverified",
       description: clean(r.description, 600), repo: clean(r.repo, 200),
-      installCommand: clean(r.installCommand, 300), installAvailable: r.installAvailable === true
+      installCommand: clean(r.installCommand, 300), installAvailable: r.installAvailable === true,
+      preview: isPreviewPath(r.preview) ? r.preview : ""
     }
     row.hay = [row.name, row.id, row.author, row.category, tags.join(" ")].join("\n").toLowerCase()
     rows.push(row)
@@ -152,6 +159,11 @@ function installArgv(root, id) {
 function agentArgv(root, id, mode) {
   return [SW + "omarchy-launch-tui", "--app-id=TUI.float",
           BASH, root + "/bin/nixarchy-plugin-fix", id, "--mode", mode === "fix" ? "fix" : "explain"]
+}
+// The shell never fetches the image itself: catalog.sh downloads, checks and
+// caches it, and prints a local path.
+function previewArgv(root, relpath) {
+  return isPreviewPath(relpath) ? [BASH, root + "/lib/catalog.sh", "preview", relpath] : null
 }
 function copyArgv(text) {
   return [SW + "wl-copy", "--", String(text)]
