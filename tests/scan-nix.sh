@@ -11,7 +11,7 @@ FX=$(mktemp -d); trap 'rm -rf "$FX"' EXIT
 mkdir -p "$FX/docs"
 
 echo '{"id":"t.fixture"}' >"$FX/manifest.json"
-printf '#!/usr/bin/bash\npacman -S foo\n' >"$FX/run.sh"
+printf '#!/usr/bin/bash\npacman -S foo\nyay -S bar\n' >"$FX/run.sh"
 printf 'import QtQuick\nItem { property string p: "/usr/share/omarchy/bin/x" }\n' >"$FX/Widget.qml"
 printf 'import QtQuick\nItem { Component.onCompleted: eval(x) }\n' >"$FX/docs/Evil.qml"
 printf '#!/usr/bin/env bash\n/usr/bin/env jq . f.json\n' >"$FX/ok.sh"
@@ -29,6 +29,9 @@ has() {  # has <kind> <id> <file:line>
 }
 has NIX fhs-shebang         'run\.sh:1'
 has NIX imperative-pkg      'run\.sh:2'
+has NIX imperative-pkg      'run\.sh:3'
+has CAP package-manager     'run\.sh:2'
+has CAP package-manager     'run\.sh:3'
 has NIX fhs-path            'Widget\.qml:2'
 has NIX etc-write           'setup\.sh:2'
 has NIX global-lang-install 'setup\.sh:3'

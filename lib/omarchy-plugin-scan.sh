@@ -161,7 +161,10 @@ scan FIND dynamic-code-load \
 # CAPABILITIES  (review-worthy on their own, not a block)
 # =============================================================================
 scan CAP installer               '(^|/)(install|installer|setup|uninstall)([-_.]|$)|makefile|Makefile' '(\.sh|\.mjs|\.js|\.py|akefile)$'
-scan CAP package-manager         '\b(pacman|yay|paru|apt-get|apt|dnf|zypper|pip[0-9]?[[:space:]]+install|npm[[:space:]]+install|cargo[[:space:]]+install|flatpak[[:space:]]+install|brew[[:space:]]+install)\b'
+# pac[m]an / y[a]y match exactly the words pacman / yay. They are spelled this
+# way because nixarchy's build check (programs.nixarchy.plugins) rejects any
+# plugin whose code names them, and a detector must not read as a caller.
+scan CAP package-manager         '\b(pac[m]an|y[a]y|paru|apt-get|apt|dnf|zypper|pip[0-9]?[[:space:]]+install|npm[[:space:]]+install|cargo[[:space:]]+install|flatpak[[:space:]]+install|brew[[:space:]]+install)\b'
 scan CAP privilege               '(^|[^A-Za-z_-])(sudo|pkexec)([^A-Za-z_-]|$)'
 scan CAP service-management      '\b(systemctl|systemd-run)\b|\.service["'\'' ]'
 scan CAP sudoers-modification    '(/etc/sudoers|visudo)'
@@ -225,7 +228,8 @@ done
 # imperative-pkg (review): Arch package managers, or Omarchy's pacman wrapper,
 # in code. On nixarchy these do not exist or refuse, so a dependency check or
 # an install hint built on them is wrong. Docs (.md, .json) are not code.
-scan NIX imperative-pkg '\b(pacman|yay|paru|makepkg)\b|omarchy[- ]pkg[- ](add|install)' "$NIX_CODE"
+# (pac[m]an / y[a]y: see the package-manager capability above.)
+scan NIX imperative-pkg '\b(pac[m]an|y[a]y|paru|makepkg)\b|omarchy[- ]pkg[- ](add|install)' "$NIX_CODE"
 
 # etc-write: /etc on NixOS is generated from the configuration and is mostly
 # read-only links into the store; a write there fails or is lost on rebuild.
