@@ -144,6 +144,21 @@ the details show both verdicts: security, and NixOS. The panel only ever reads
 marketplace as plain text. The agent session and its fix flow run in a
 floating terminal, because they are interactive.
 
+**Preview images.** Opening a plugin shows its screenshot from the
+marketplace, above the description, for the 3,379 plugins that have one.
+Only the plugin you open is fetched, so plugins.omarchy.org learns which
+plugins you look at: the same site the catalog comes from. The shell never
+downloads or decodes anything straight from the network. `lib/catalog.sh
+preview` fetches the 720×405 thumbnail and checks it first:
+- it only accepts `https://plugins.omarchy.org/assets/img/plugins/<name>.webp|png`;
+- at most 2 MiB, within 15 s;
+- the file's own bytes must say WebP or PNG, matching its name.
+
+It keeps the file in a private cache (`~/.cache/omarchy-plugin-audit/previews/`,
+capped at 50 MiB), and the panel decodes it at no more than 720×405. To turn
+previews off, set `"previews": false` in
+`~/.config/nixarchy-plugin-browser/config.json`.
+
 It can also be opened from a script:
 
 ```bash

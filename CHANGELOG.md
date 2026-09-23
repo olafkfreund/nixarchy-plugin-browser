@@ -3,6 +3,12 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## 0.5.0
+
+- Opening a plugin shows its screenshot from the marketplace, fetched and checked safely, cached
+- Turn previews off with "previews": false in ~/.config/nixarchy-plugin-browser/config.json
+- Enter right after typing a search now opens the plugin you searched for
+
 ## 0.4.0
 
 - The browser runs inside the shell: a full-screen, keyboard-driven panel on Super+Alt+U
