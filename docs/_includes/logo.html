@@ -1,0 +1,26 @@
+{%- comment -%}
+  The wordmark. Generated with figlet, font delta_corps_priest_1 -- the same
+  typeface nixarchy's and nixarchy-pkg's sites use, so the three read as
+  relatives:
+
+      figlet -w 400 -f delta_corps_priest_1 PLUGINS
+
+  (the font is not in nixpkgs' figlet; it is "Delta Corps Priest 1.flf" from
+  xero/figlet-fonts 417429ef, sha256 5065f00a…). Nine rows, seventy-five
+  columns. PLUGINS rather than the full name, which a masthead cannot hold;
+  the tagline carries the rest. Regenerate rather than hand-edit: the sizing
+  in style.css is tuned to that column count. role="img" with a label because
+  a screen reader reading out block characters one by one is worse than
+  useless.
+{%- endcomment -%}
+<pre class="logo" role="img" aria-label="nixarchy.plugin-browser">
+   ▄███████▄  ▄█       ███    █▄     ▄██████▄   ▄█  ███▄▄▄▄      ▄████████ 
+  ███    ███ ███       ███    ███   ███    ███ ███  ███▀▀▀██▄   ███    ███ 
+  ███    ███ ███       ███    ███   ███    █▀  ███▌ ███   ███   ███    █▀  
+  ███    ███ ███       ███    ███  ▄███        ███▌ ███   ███   ███        
+▀█████████▀  ███       ███    ███ ▀▀███ ████▄  ███▌ ███   ███ ▀███████████ 
+  ███        ███       ███    ███   ███    ███ ███  ███   ███          ███ 
+  ███        ███▌    ▄ ███    ███   ███    ███ ███  ███   ███    ▄█    ███ 
+ ▄████▀      █████▄▄██ ████████▀    ████████▀  █▀    ▀█   █▀   ▄████████▀  
+             ▀                                                             
+</pre>

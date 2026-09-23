@@ -1,0 +1,30 @@
+# The Plugin Browser's site: nixarchy's site design, forked the way
+# nixarchy-pkg's is (see the header of assets/style.css). Built by
+# .github/workflows/pages.yml, which also checks that every manual page is
+# reachable from the sidebar, llms.txt and the manual's index.
+title: nixarchy.plugin-browser
+description: Browse the Omarchy plugin marketplace, and audit a plugin before it runs
+url: "https://olafkfreund.github.io"
+baseurl: "/nixarchy-plugin-browser"
+
+include:
+  - manual
+
+defaults:
+  - scope:
+      path: "manual"
+    values:
+      layout: manual
+
+# The sidebar, in reading order. A page added to manual/ and not listed here
+# is published and unreachable; pages.yml fails the PR when that happens.
+nav:
+  - { path: /manual/,                      title: What this is }
+  - { path: /manual/getting-started,       title: Getting started }
+  - { path: /manual/the-panel,             title: The panel }
+  - { path: /manual/the-audit,             title: The audit }
+  - { path: /manual/the-agent,             title: Asking your agent }
+  - { path: /manual/installing,            title: Installing a plugin }
+  - { path: /manual/previews-and-privacy,  title: Previews and privacy }
+  - { path: /manual/from-a-terminal,       title: From a terminal }
+  - { path: /manual/troubleshooting,       title: Troubleshooting }

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>nixarchy.plugin-browser — {{ site.description }}</title>
+<meta name="description" content="{{ site.description }}">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap">
+<link rel="stylesheet" href="{{ '/assets/style.css' | relative_url }}">
+</head>
+<body class="home">
+
+<header class="masthead">
+  {% include logo.html %}
+  <p class="tagline">{{ site.description }}</p>
+  <nav class="mast-nav">
+    <a href="{{ '/manual/' | relative_url }}">Manual</a>
+    <a href="https://github.com/olafkfreund/nixarchy-plugin-browser">GitHub</a>
+    <a href="https://github.com/olafkfreund/nixarchy-plugin-browser/issues">What is being worked on</a>
+  </nav>
+</header>
+
+<main class="content content--centred">
+  {{ content }}
+</main>
+
+</body>
+</html>
