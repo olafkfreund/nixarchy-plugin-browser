@@ -177,8 +177,9 @@ Singleton {
 
   // ------------------------------------------------------------ detached
   function agent(id, mode) {
-    if (!Model.isSafeId(id)) return
+    if (!Model.isSafeId(id)) return false
     Quickshell.execDetached({ command: Model.agentArgv(root.pluginDir, id, mode), environment: root.childEnv })
+    return true
   }
 
   function copy(text) {

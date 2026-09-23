@@ -84,7 +84,7 @@ IDS=$(jq -r '[.nixosCompatibility.findings[].id | select(test("^[a-z-]+$"))] | u
 # ---- 2. workspace ------------------------------------------------------------
 W="$STATE/$ID-${BASE:0:12}"; [[ -n $BASE ]] || W="$STATE/$ID-local"
 if [[ -e $W ]]; then
-  gum confirm "Replace the previous workspace for $ID?" || die "kept $W; nothing done" 0
+  gum confirm --default=false "Replace the previous workspace for $ID?" || die "kept $W; nothing done" 0
   chmod -R u+w -- "$W"; rm -rf -- "$W"
 fi
 mv -- "$TMP" "$W" && TMP=""
@@ -136,7 +136,7 @@ gum style --foreground 214 --border rounded --padding "0 1" \
   "Your default agent ($agent) runs with auto-approve on a copy of an UNTRUSTED plugin." \
   "It works in: $W/tree" \
   "A prompt injection hidden in the plugin could make it run commands as you."
-gum confirm "Launch $agent in $MODE mode?" || exit 0
+gum confirm --default=false "Launch $agent in $MODE mode?" || exit 0
 (cd -- "$W/tree" && omarchy-agent-prompt --inline "$preamble
 
 $task")

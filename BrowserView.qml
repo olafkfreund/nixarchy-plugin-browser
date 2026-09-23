@@ -269,8 +269,9 @@ FocusScope {
         switch (event.key) {
           case Qt.Key_Escape: case Qt.Key_Left: case Qt.Key_Backspace: root.back(); break
           case Qt.Key_A: BrowserState.audit(id); break
-          case Qt.Key_E: BrowserState.agent(id, "explain"); break
-          case Qt.Key_F: BrowserState.agent(id, "fix"); break
+          // The agent's terminal needs the keyboard, which this overlay holds.
+          case Qt.Key_E: if (BrowserState.agent(id, "explain")) root.closeRequested(); break
+          case Qt.Key_F: if (BrowserState.agent(id, "fix")) root.closeRequested(); break
           case Qt.Key_I: if (!BrowserState.installing) root.confirmOpen = true; break
           case Qt.Key_C: BrowserState.copy(root.selected.installCommand); break
           case Qt.Key_O: BrowserState.openRepo(root.selected.repo); break
