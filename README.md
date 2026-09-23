@@ -1,5 +1,10 @@
 # Nixarchy Plugin Browser + Auditor
 
+**[The site and manual](https://olafkfreund.github.io/nixarchy-plugin-browser/)** ·
+on nixarchy it is *Setup ▸ Plugins ▸ Add Plugin*.
+
+[![Add Plugin opens the browser; a search, a plugin's preview and its two verdicts, then one that passes](docs/img/tour.gif)](https://olafkfreund.github.io/nixarchy-plugin-browser/)
+
 A fork of the Omarchy Plugin Browser for **nixarchy** (Omarchy on NixOS). It
 uses NixOS paths throughout and does not run on Arch Omarchy.
 
