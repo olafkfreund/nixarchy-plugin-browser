@@ -1,0 +1,115 @@
+name: pages
+
+on:
+  push:
+    branches: [master]
+    paths: ['docs/**', '.github/workflows/pages.yml']
+  pull_request:
+    paths: ['docs/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  # Every page reachable from all three of the hand-maintained indexes.
+  #
+  # Lifted from nixarchy's build.yml, whose comment records why it exists:
+  # a page added to docs/manual/ and not listed in the sidebar is published
+  # and unreachable, and four pages had drifted out that way before anybody
+  # noticed the manual never mentioned two shipped features. The welcome
+  # table had drifted further -- to 24 of 26 -- leaving two of the features
+  # most worth showing a new reader unlinked from the page a reader lands on.
+  #
+  # Membership only, never order: where a page belongs in a reading order is
+  # a judgement, whether it is reachable at all is not.
+  #
+  # This runs on pull requests, which is the point of having a workflow at
+  # all -- a native Pages build only ever runs after the merge.
+  reachable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Every manual page is in the sidebar, llms.txt and the index
+        run: |
+          pages=$(basename -a docs/manual/*.md |
+            sed 's/\.md$//' | grep -v '^index$' | sort)
+          nav=$(grep -oE 'path: /manual/[a-z-]+' docs/_config.yml |
+            sed 's|path: /manual/||' | sort -u)
+          llms=$(grep -oE 'manual/[a-z-]+' docs/llms.txt |
+            sed 's|manual/||' | sort -u)
+          # Links in the welcome table are relative -- `](packages)` -- and
+          # sometimes carry an anchor, so strip a #fragment rather than match
+          # a /manual/ prefix like the two above.
+          index=$(grep -oE '\]\([a-z-]+(#[a-z-]*)?\)' docs/manual/index.md |
+            sed 's/](//;s/)//;s/#.*//' | sort -u)
+          rc=0
+          for n in $(comm -23 <(echo "$pages") <(echo "$nav") || true); do
+            echo "::error::docs/manual/$n.md is published but not in the docs/_config.yml sidebar"
+            rc=1
+          done
+          for n in $(comm -23 <(echo "$pages") <(echo "$llms") || true); do
+            echo "::error::docs/manual/$n.md is published but not in docs/llms.txt"
+            rc=1
+          done
+          for n in $(comm -23 <(echo "$pages") <(echo "$index") || true); do
+            echo "::error::docs/manual/$n.md is published but not linked from docs/manual/index.md"
+            rc=1
+          done
+          # And the other direction, which the first three do not cover: a
+          # sidebar entry whose page does not exist. Without this, a nav line
+          # added ahead of the page it names -- or left behind when a page is
+          # renamed -- is a link to a 404 that CI calls green.
+          for n in $(comm -13 <(echo "$pages") <(echo "$nav") || true); do
+            echo "::error::docs/_config.yml lists /manual/$n but docs/manual/$n.md does not exist"
+            rc=1
+          done
+          [ $rc -eq 0 ] || exit 1
+
+      # Every image a page references actually exists. A broken <img> is
+      # invisible in review and obvious to a reader.
+      - name: Every referenced image exists
+        run: |
+          rc=0
+          while read -r ref; do
+            p="docs/manual/$ref"
+            [ -f "$(realpath -m "$p")" ] || { echo "::error::missing image: $ref"; rc=1; }
+          done < <(grep -ohE '\]\(\.\./img/[^)]+\)' docs/manual/*.md |
+                   sed 's/](//;s/)//')
+          # The landing page too: its images are the ones a visitor sees first.
+          while read -r ref; do
+            [ -f "docs/$ref" ] || { echo "::error::missing image on the landing page: $ref"; rc=1; }
+          done < <(grep -ohE '\]\(img/[^)]+\)' docs/index.md | sed 's/](//;s/)//')
+          [ $rc -eq 0 ] || exit 1
+
+  # Build on pull requests too, so a broken Liquid tag or a missing layout
+  # fails the review rather than the deployment.
+  build:
+    runs-on: ubuntu-latest
+    needs: reachable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs
+          destination: ./_site
+      - uses: actions/upload-pages-artifact@v3
+
+  deploy:
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
