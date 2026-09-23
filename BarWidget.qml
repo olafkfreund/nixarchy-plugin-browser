@@ -57,6 +57,9 @@ BarWidget {
   readonly property bool updateAvailable: !!updateInfo && updateInfo.update_available === true
                                           && updateInfo.dismissed !== updateInfo.latest
   readonly property bool updateMismatch: !!updateInfo && updateInfo.mismatch === true
+  // Installed from a Nix store path (programs.nixarchy.plugins): no .git, so
+  // `omarchy plugin update` cannot work; the flake lock is the update path.
+  readonly property bool nixInstall: !!updateInfo && updateInfo.git_managed === false
   // What the alert is about: the newer version, or "mismatch". Update… and Later
   // hide that key only, so the next version (or a new mismatch) shows again.
   readonly property string updateKey: updateAvailable ? String(updateInfo.latest) : (updateMismatch ? "mismatch" : "")
@@ -155,14 +158,16 @@ BarWidget {
       Text {
         width: parent.width; wrapMode: Text.Wrap; textFormat: Text.PlainText
         text: root.updateAvailable
-              ? "Update opens a terminal: omarchy plugin update shows the changes and asks, then install.sh relinks the commands (asks first)."
+              ? (root.nixInstall
+                 ? "Installed through Nix: update with nix flake update nixarchy-plugin-browser and rebuild."
+                 : "Update opens a terminal: omarchy plugin update shows the changes and asks, then install.sh relinks the commands (asks first).")
               : "Run install.sh once so the linked commands match. It asks before changing anything."
         color: Color.popups.text; opacity: 0.6; font.family: Style.font.family; font.pixelSize: Style.font.caption
       }
       Item { width: 1; height: Style.space(2) }
       Row {
         spacing: Style.space(4)
-        Button { text: root.updateAvailable ? "Update…" : "Finish update…"; bordered: true; foreground: Color.accent; onClicked: root.runUpdate() }
+        Button { visible: !root.nixInstall; text: root.updateAvailable ? "Update…" : "Finish update…"; bordered: true; foreground: Color.accent; onClicked: root.runUpdate() }
         Button { text: "Later"; bordered: true; foreground: Color.popups.text; onClicked: root.dismissUpdate() }
         Button { text: "Browse plugins"; foreground: Color.popups.text; onClicked: root.launch() }
       }
