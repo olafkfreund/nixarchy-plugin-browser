@@ -105,6 +105,50 @@ Singleton {
     }
   }
 
+  // ------------------------------------------------------------ preview
+  // The plugin's marketplace thumbnail. catalog.sh fetches and checks it and
+  // prints a local file; the shell only ever decodes that verified file. One
+  // fetch at a time, newest request queued, as the audit does.
+  readonly property string previewDir: (Quickshell.env("XDG_CACHE_HOME")
+    || (Quickshell.env("HOME") + "/.cache")) + "/omarchy-plugin-audit/previews/"
+  property string previewFor: ""
+  property string previewPath: ""
+  property bool previewing: false
+  property string previewingFor: ""
+  property var pendingPreview: null
+
+  function preview(row) {
+    root.previewFor = row ? row.id : ""
+    root.previewPath = ""
+    var argv = row && Model.isSafeId(row.id) ? Model.previewArgv(root.pluginDir, row.preview) : null
+    if (!argv) return
+    if (previewProcess.running) { root.pendingPreview = row; return }
+    root.previewing = true
+    root.previewingFor = row.id
+    previewProcess.command = argv
+    previewProcess.running = true
+  }
+
+  Process {
+    id: previewProcess
+    environment: root.childEnv
+    stdout: StdioCollector { id: previewOut; waitForEnd: true }
+    onExited: function(code) {
+      var path = String(previewOut.text || "").trim()
+      // Only a file catalog.sh verified, under its own cache folder, and only
+      // for the plugin still open: a late answer for another plugin is dropped.
+      if (code === 0 && path.indexOf(root.previewDir) === 0 && path.indexOf("..") < 0
+          && root.previewingFor === root.previewFor)
+        root.previewPath = path
+      root.previewing = false
+      if (root.pendingPreview) {
+        var next = root.pendingPreview
+        root.pendingPreview = null
+        if (next.id === root.previewFor) root.preview(next)
+      }
+    }
+  }
+
   // ------------------------------------------------------------ install
   property bool installing: false
   property string installFor: ""

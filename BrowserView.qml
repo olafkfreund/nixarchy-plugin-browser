@@ -97,6 +97,7 @@ FocusScope {
     root.confirmOpen = false
     report.contentY = 0
     if (!(BrowserState.reportFor === row.id && BrowserState.report)) BrowserState.audit(row.id)
+    BrowserState.preview(row)
     Qt.callLater(root.focusForMode)
   }
   function back() {
@@ -292,6 +293,27 @@ FocusScope {
           id: detail
           width: report.width
           spacing: Style.spacing.sm
+
+          // The marketplace thumbnail, from a local file catalog.sh verified.
+          // Keyed on the open plugin so a quick move never shows another
+          // plugin's picture; decoded at most 720x405 whatever the file
+          // claims; takes no space until it is ready.
+          Image {
+            id: preview
+            readonly property bool mine: root.selected !== null
+                                         && BrowserState.previewFor === root.selected.id
+                                         && BrowserState.previewPath !== ""
+            source: mine ? "file://" + BrowserState.previewPath : ""
+            sourceSize: Qt.size(720, 405)
+            width: parent.width
+            height: status === Image.Ready ? Math.min(width * 405 / 720, Style.space(260)) : 0
+            visible: status === Image.Ready
+            fillMode: Image.PreserveAspectFit
+            horizontalAlignment: Image.AlignLeft
+            asynchronous: true
+            cache: false
+            smooth: true
+          }
 
           Text {
             width: parent.width
