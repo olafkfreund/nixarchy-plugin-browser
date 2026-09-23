@@ -75,7 +75,17 @@ FocusScope {
   }
 
   // --------------------------------------------------------------- actions
+  // Keys that act on the list act on what was typed, not on what the 80 ms
+  // debounce has shown so far: typing "monitor" and pressing Enter at once
+  // used to open the top row of the unfiltered list (found in G1 on razer).
+  function commitFilter() {
+    if (!filterDelay.running) return
+    filterDelay.stop()
+    root.appliedQuery = root.query
+    root.cursor = 0
+  }
   function move(delta) {
+    root.commitFilter()
     if (root.visibleRows.length === 0) return
     root.cursor = Math.max(0, Math.min(root.visibleRows.length - 1, root.cursor + delta))
     list.positionViewAtIndex(root.cursor, ListView.Contain)
@@ -176,7 +186,7 @@ FocusScope {
           else if (event.key === Qt.Key_Up || (ctrl && event.key === Qt.Key_K)) { root.move(-1); event.accepted = true }
           else if (event.key === Qt.Key_PageDown) { root.move(10); event.accepted = true }
           else if (event.key === Qt.Key_PageUp) { root.move(-10); event.accepted = true }
-          else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.openDetails(root.cursorRow); event.accepted = true }
+          else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { root.commitFilter(); root.openDetails(root.cursorRow); event.accepted = true }
           else if (ctrl && event.key === Qt.Key_R) { BrowserState.loadCatalog(true); event.accepted = true }
           else if (event.key === Qt.Key_Escape) {
             if (search.text.length > 0) search.text = ""
