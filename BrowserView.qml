@@ -162,7 +162,7 @@ FocusScope {
               : root.visibleRows.length + " of " + BrowserState.rows.length + " plugins   ? keys"
         color: BrowserState.catalogError !== "" ? Color.urgent : root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.font.subtitle
+        font.pixelSize: Style.font.title
         elide: Text.ElideLeft
         width: parent.width - title.implicitWidth - Style.spacing.lg
         horizontalAlignment: Text.AlignRight
@@ -245,7 +245,7 @@ FocusScope {
                 + (rowItem.modelData.category ? "   " + rowItem.modelData.category : "")
           color: rowItem.index === root.cursor ? Color.menu.selectedText : root.foreground
           font.family: root.fontFamily
-          font.pixelSize: Style.font.subtitle
+          font.pixelSize: Style.font.title
         }
         Text {
           id: stars
@@ -256,7 +256,7 @@ FocusScope {
           text: Model.Glyph.star + " " + rowItem.modelData.stars
           color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.subtitle
+          font.pixelSize: Style.font.title
         }
         MouseArea {
           anchors.fill: parent
@@ -352,7 +352,7 @@ FocusScope {
                                   .filter(function(s) { return s !== "" }).join("   ·   ") : ""
             color: root.dim
             font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
+            font.pixelSize: Style.font.title
           }
           Text {
             width: parent.width
@@ -362,7 +362,7 @@ FocusScope {
             text: root.selected ? root.selected.description : ""
             color: root.foreground
             font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
+            font.pixelSize: Style.font.title
           }
           Text {
             width: parent.width
@@ -372,7 +372,7 @@ FocusScope {
             text: root.selected && root.selected.repo ? root.selected.repo : ""
             color: root.dim
             font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
+            font.pixelSize: Style.font.title
           }
           // Exactly what `c` puts on the clipboard, so it is read before it is pasted.
           Text {
@@ -388,7 +388,7 @@ FocusScope {
                     : "Nothing to copy: its repository is not a GitHub URL"
             color: copied ? Color.accent : root.dim
             font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
+            font.pixelSize: Style.font.title
           }
 
           Rectangle { width: parent.width; height: Math.max(1, Style.space(1)); color: root.dim; opacity: 0.4 }
@@ -400,7 +400,7 @@ FocusScope {
             text: "Auditing in a sandbox… (clone, pin, scan)"
             color: Color.accent
             font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
+            font.pixelSize: Style.font.title
           }
           Text {
             width: parent.width
@@ -410,7 +410,7 @@ FocusScope {
             text: "Queued: starts when the current audit stops"
             color: root.dim
             font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
+            font.pixelSize: Style.font.title
           }
           Text {
             width: parent.width
@@ -420,7 +420,7 @@ FocusScope {
             text: BrowserState.auditError
             color: Color.urgent
             font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
+            font.pixelSize: Style.font.title
           }
           Repeater {
             model: root.reportLines
@@ -435,7 +435,7 @@ FocusScope {
                      : modelData.tone === "warn" ? Color.accent
                      : modelData.tone === "dim" ? root.dim : root.foreground
               font.family: root.fontFamily
-              font.pixelSize: Style.font.subtitle
+              font.pixelSize: Style.font.title
               font.bold: modelData.indent === 0 && modelData.tone !== "dim"
             }
           }
@@ -448,7 +448,7 @@ FocusScope {
                   ? (BrowserState.installing ? "Installing (disabled)…" : BrowserState.installOutput) : ""
             color: root.foreground
             font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
+            font.pixelSize: Style.font.title
           }
         }
       }
@@ -467,7 +467,7 @@ FocusScope {
               : "↑↓ move   Enter details   Ctrl+R refresh   Esc close   ? keys"
       color: root.confirmOpen ? Color.accent : root.dim
       font.family: root.fontFamily
-      font.pixelSize: Style.font.subtitle
+      font.pixelSize: Style.font.title
     }
   }
 

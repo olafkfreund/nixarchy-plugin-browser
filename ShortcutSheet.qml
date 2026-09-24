@@ -43,7 +43,7 @@ Rectangle {
           text: modelData.group
           color: Color.muted
           font.family: root.fontFamily
-          font.pixelSize: Style.font.subtitle
+          font.pixelSize: Style.font.title
           opacity: index === 0 || Model.SHORTCUTS[index - 1].group !== modelData.group ? 1 : 0
         }
         Text {
@@ -51,13 +51,13 @@ Rectangle {
           text: modelData.keys
           color: Color.accent
           font.family: root.fontFamily
-          font.pixelSize: Style.font.subtitle
+          font.pixelSize: Style.font.title
         }
         Text {
           text: modelData.what
           color: root.foreground
           font.family: root.fontFamily
-          font.pixelSize: Style.font.subtitle
+          font.pixelSize: Style.font.title
         }
       }
     }
