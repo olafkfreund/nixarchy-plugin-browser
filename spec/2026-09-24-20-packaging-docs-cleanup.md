@@ -19,8 +19,23 @@ The approved decisions from the intent:
 - in `docs/update-alerts.md`, fix only the "In this plugin" section;
 - reword the plugin count so it cannot drift;
 - keep `preview.png` and document it as the marketplace image;
-- drop the STAT records and `stat()` after #15 lands;
+- keep the STAT records and `stat()`: #15 relies on the `STAT scan complete`
+  marker, so they are not removed, and `stat()` is left as it is unless #15
+  changes it;
 - keep the HANCORE comments, reworded to state intent.
+
+The spec-review decisions (the former approver questions):
+
+- the shared "install.sh asks" wording in `lib/update.sh` and
+  `docs/update-alerts.md` is not changed here. A separate issue is filed
+  upstream, in `OmarchyFans/omarchy-fans-help`, the reference implementation
+  named in `docs/update-alerts.md:10-11`;
+- getting-started keeps `nixarchy-plugin <id>` and gains the clarifying
+  sentence;
+- `install.sh` keeps `chmod +x`, but only runs it when the file is not
+  already executable, which is safer for zip downloads;
+- #18 now changes the terminal UI's copy command and the `jq` chain area, so
+  every phase B item in `bin/omarchy-plugin-browser` waits for #18.
 
 All line numbers below were checked on `26216da`, which has the same code as
 `master` at `449636c`.
@@ -63,8 +78,10 @@ outputs table (`README.md:85`, `docs/manual/getting-started.md:72`) gains
   line.
 - The failure message names the missing tools and points at
   `nixarchy pkg add …`, as the bwrap note already does.
-- Remove both `chmod` lines (`install.sh:50`, `:54`). Git already stores
-  the tools and the scanner as `100755` (`git ls-files -s`).
+- Keep both `chmod` lines (`install.sh:50`, `:54`), guarded so they only
+  write when the bit is missing: `[[ -x $src ]] || chmod +x "$src"`, and the
+  same for the scanner. Git already stores them as `100755`, so a git clone
+  is never written to; a zip download without modes still gets fixed.
 
 **A5. `manifest.json:8`: the description.** Replace "A bar button that opens a
 terminal browser" with "A bar button and a full-screen panel (Super+Alt+U)".
@@ -93,7 +110,9 @@ The rest of the sentence stays.
 
   `lib/update.sh:19-20`, `lib/update.sh:199` and `docs/update-alerts.md:44`
   are not edited. They are the shared, cross-plugin text, and for other
-  plugins "install.sh asks" can be true. See approver question 1.
+  plugins "install.sh asks" can be true. The wording is raised upstream
+  instead (A8). The intent's outcome "nothing claims install.sh asks" is
+  narrowed to this plugin's own text.
 - **`docs/update-alerts.md` "In this plugin" (`:134-141`), rewritten to match
   the code:**
   - "Kind: bar widget (`BarWidget.qml`) plus a full-screen panel (`Menu.qml`)";
@@ -110,7 +129,7 @@ The rest of the sentence stays.
   turned off. So the line is kept as it is, and one sentence is added after it:
   "The binds file this plugin ships uses
   `omarchy-shell shell toggle <id> '{}'` (`hypr/plugin-browser-binds.lua:14`).
-  Both open the same panel." See approver question 2.
+  Both open the same panel."
 - **`secret-reference`.**
   - `README.md:295-296`: add `secret-reference` to the capability list.
   - `docs/manual/the-audit.md:35`: add "mentions of secrets or tokens" to the
@@ -139,6 +158,13 @@ as GitHub issues:
 Each issue links back to the plan lines. The plan's Open list gets the two
 issue numbers, in the same PR.
 
+A third issue goes to `OmarchyFans/omarchy-fans-help`, where the shared
+helper's reference copy lives (`docs/update-alerts.md:10-11`): "install.sh
+asks" in `lib/update.sh` (header and the `run` step) and in
+`docs/update-alerts.md` is not true for every plugin, so the shared wording
+should become "may ask" or similar. It is filed at implementation time and
+linked from this issue.
+
 ### Phase B: after #15, #17 and #18 merge
 
 Each item below starts by re-reading the lines, because those PRs will move
@@ -165,14 +191,13 @@ them. None of them changes behaviour.
   hang or fill the disk". The review reference is kept as a trailing
   "(from HANCORE-linux's review, #5581 v2)".
 
-**B2. `lib/omarchy-plugin-scan.sh`, after #15.** Remove STAT from the format
-comment (`:15`), `stat()` (`:32`), its two calls (`:67-68`) and the final
-`STAT scan complete` line (`:287`). Nothing in `bin/`, `lib/catalog.sh` or
-`tests/` reads STAT. `nixarchy-plugin-fix:64` checks the audit's exit code,
-not a sentinel. The other record types (FIND, CAP, INFO, VALIDATE and the
-NixOS ones) are unchanged.
+**B2. `lib/omarchy-plugin-scan.sh`: no change.** The STAT records and
+`stat()` stay, because #15 relies on the `STAT scan complete` marker
+(`:287`). `stat()` is not renamed unless #15 changes it.
 
-**B3. `bin/omarchy-plugin-browser`, after #18.**
+**B3. `bin/omarchy-plugin-browser`, after #18.** #18 changes the terminal
+UI's copy command and the `jq` chain area, so both items below wait for it
+and re-read the script after it merges.
 
 - **`run_fix` and `run_audit`** (`:130-146`) become one
   `run_tool <script> <id>`. The id check, the `bash` call and the "Enter to
@@ -227,6 +252,13 @@ razer)". The comment keeps the behaviour it explains.
   confirm-default-No fix should reach users now.
 - **Updating "3,379" on each release.** Rejected by the approver. The
   number drifts between releases anyway.
+- **Removing `chmod +x` from `install.sh`.** Rejected by the approver. A zip
+  download has no modes, and the guarded chmod costs nothing on a git clone.
+- **Replacing the getting-started bind line with the `omarchy-shell` form.**
+  Rejected by the approver. `nixarchy-plugin <id>` is nixarchy's own command
+  and works; the added sentence names the other form.
+- **Dropping the STAT records and `stat()`.** Rejected: #15 relies on the
+  `STAT scan complete` marker.
 - **Deleting `preview.png`, or shipping it in the flake.** It is the
   marketplace image, so it stays. The plugin does not need it at runtime, so
   it stays out of `files` (`flake.nix:16-28`).
@@ -242,12 +274,9 @@ razer)". The comment keeps the behaviour it explains.
   have run there, but the message has to say what to install. On non-NixOS
   hosts the pinned `PATH` does not exist. The plugin already targets nixarchy
   only (`bin/*` pin the same `PATH`), so this is not a regression.
-- **Removing `chmod +x`.** A clone made with `core.fileMode=false`, or from a
-  zip download, may lose the exec bit. The update helper checks
-  `[[ -x $UPD_DIR/install.sh ]]` (`lib/update.sh:198`), and the tools are
-  started through `bash` by the QML and the TUI, but a `~/.local/bin` symlink
-  to a non-executable file fails. This only affects the manual install. See
-  approver question 3.
+- **The guarded `chmod +x`.** `[[ -x ]]` is true on a normal clone, so a git
+  clone is never written to. A zip download or a `core.fileMode=false` clone
+  still gets the bit set, as before.
 - **The 0.5.1 update alert fires for everyone on 0.5.0 as soon as phase A
   merges.** This is intended. Everything user-visible that 0.5.1 claims must
   be in that merge.
@@ -277,7 +306,7 @@ Phase A:
   - `grep -rn "3,379\|3379 of" README.md docs/manual`
   - `grep -n "corrected step list" README.md`
   - `grep -n "opens a terminal browser" manifest.json`
-  - `grep -n "chmod" install.sh`
+  - `grep -nE "^\s*chmod" install.sh` (every chmod sits behind `[[ -x … ]] ||`)
 - These greps return a match:
   - `grep -n "follows" README.md docs/manual/getting-started.md` (one each);
   - `grep -n "secret-reference" README.md`;
@@ -290,12 +319,14 @@ Phase A:
   fail and name all five tools, even though they are on the caller's `PATH`.
   This proves the lookup ignores the caller's `PATH`.
 - The two issues exist, and the plan's Open list cites them.
+- The upstream issue exists in `OmarchyFans/omarchy-fans-help` and is linked
+  from #20.
 
 Phase B, for each item:
 
 - `nix flake check` and all of `tests/*` pass.
 - `grep -rn -- "--pause" bin lib` returns nothing.
-- `grep -n "STAT\|^stat()" lib/omarchy-plugin-scan.sh` returns nothing.
+- `grep -c "STAT" lib/omarchy-plugin-scan.sh` is unchanged (kept for #15).
 - `grep -n "|| echo 0" bin/omarchy-plugin-audit` returns nothing.
 - `grep -n "found in G1" BrowserView.qml` returns nothing.
 - `omarchy-plugin-audit --json` on a fixture plugin gives the same JSON before
@@ -305,18 +336,16 @@ Phase B, for each item:
 - `tests/model-check.mjs` still finds the `?` row. The sheet lists
   PgUp/PgDn, Backspace and q.
 
-## Approver questions
+## Approver decisions
 
-1. **Shared "asks" wording.** `lib/update.sh:19-20` and `:199`, and
-   `docs/update-alerts.md:44`, still say `install.sh` asks. They stay as they
-   are, for parity. The intent's outcome "nothing claims install.sh asks" is
-   narrowed to this plugin's own text. Is that right, or should the shared
-   wording become "may ask" in every Omarchy.Fans plugin, under a separate
-   issue?
-2. **Bind line in getting-started.** The spec keeps `nixarchy-plugin <id>`,
-   which is nixarchy's own command and works, and adds a sentence that points
-   at the `omarchy-shell` form. The alternative is to replace it with the
-   `omarchy-shell shell toggle` line. Which should it be?
-3. **`chmod +x` in `install.sh`.** Removing it trusts git's file modes. The
-   alternative is to keep it and only stop it writing when the bit is already
-   set (`[[ -x ]] ||`). The spec removes it.
+Resolved by olafkfreund at spec review, and folded into the design above:
+
+1. **Shared "asks" wording.** Not changed here. A separate issue is filed in
+   `OmarchyFans/omarchy-fans-help` at implementation time (A8).
+2. **Bind line in getting-started.** Keep `nixarchy-plugin <id>` and add the
+   clarifying sentence (A7).
+3. **`chmod +x` in `install.sh`.** Kept, guarded by `[[ -x ]] ||` (A4).
+4. **STAT and `stat()`.** Kept, because #15 relies on the `STAT scan
+   complete` marker (B2).
+5. **`bin/omarchy-plugin-browser`.** #18 changes the copy command and the
+   `jq` chain area, so every B item in that file waits for #18 (B3).
