@@ -28,7 +28,10 @@ set -o pipefail
 TARGET="${1:-/audit}"
 OMARCHY_BIN="${OMARCHY_BIN:-/run/current-system/sw/bin}"
 
-emit() { printf '%s\t%s\t%s\t%s\n' "$1" "$2" "$3" "${4//$'\t'/ }"; }
+# A file name or a line of plugin text can hold a tab or a newline, which would
+# start a forged record (e.g. "VALIDATE ok"). Every value is cleaned.
+clean() { local s=${1//[[:cntrl:]]/ }; printf '%s' "$s"; }
+emit() { printf '%s\t%s\t%s\t%s\n' "$1" "$(clean "$2")" "$(clean "$3")" "$(clean "$4")"; }
 stat() { printf 'STAT\t%s\t%s\n' "$1" "$2"; }
 
 [[ -d $TARGET ]] || { emit OUTCOME error - "target not a directory: $TARGET"; exit 3; }
@@ -269,12 +272,12 @@ TEXT=("${SEC_TEXT[@]}"); BIN_EXEC=("${SEC_BIN[@]}")
 # =============================================================================
 if [[ -x "$OMARCHY_BIN/omarchy-plugin-validate" ]]; then
   if vout=$("$OMARCHY_BIN/omarchy-plugin-validate" "$TARGET" 2>&1); then
-    printf 'VALIDATE\tok\t%s\n' "manifest passes the shell's schema checks"
+    printf 'VALIDATE\tok\t%s\n' "$(clean "manifest passes the shell's schema checks")"
   else
-    printf 'VALIDATE\tfail\t%s\n' "$(printf '%s' "$vout" | tr '\n' ' ' | cut -c1-200)"
+    printf 'VALIDATE\tfail\t%s\n' "$(clean "$vout" | cut -c1-200)"
   fi
 else
-  printf 'VALIDATE\tskip\t%s\n' "omarchy-plugin-validate not present in sandbox"
+  printf 'VALIDATE\tskip\t%s\n' "$(clean "omarchy-plugin-validate not present in sandbox")"
 fi
 
 # =============================================================================

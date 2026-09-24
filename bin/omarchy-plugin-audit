@@ -376,9 +376,13 @@ else
 fi
 
 # --------------------------------------------------------------------- tally
+# A finished scan prints exactly one VALIDATE record and ends with the
+# completion STAT. Anything else is a forged or truncated record stream.
+[[ $(grep -c $'^VALIDATE\t' "$RAW") == 1 && $(tail -n1 "$RAW") == $'STAT\tscan\tcomplete' ]] \
+  || die "scanner output is malformed" 3
 n_find=$(grep -c $'^FIND\t' "$RAW" 2>/dev/null || echo 0); n_find=${n_find//[!0-9]/}; n_find=${n_find:-0}
 n_cap=$(grep -c $'^CAP\t'  "$RAW" 2>/dev/null || echo 0);  n_cap=${n_cap//[!0-9]/};  n_cap=${n_cap:-0}
-VALIDATE=$(grep $'^VALIDATE\t' "$RAW" | head -1)
+VALIDATE=$(grep $'^VALIDATE\t' "$RAW")
 V_RES=$(cut -f2 <<<"$VALIDATE"); V_MSG=$(cut -f3 <<<"$VALIDATE")
 
 if (( n_find > 0 )); then OUTCOME="needs-fixes"; OC_COLOR=$RED; OC_EXIT=20
