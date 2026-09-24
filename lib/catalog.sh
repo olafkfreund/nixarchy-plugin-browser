@@ -7,8 +7,9 @@
 #   catalog_usable <file>      a regular, own, non-empty file within the ceiling
 #   fetch_catalog [--force]    0: a usable catalog is in place (fresh, or stale
 #                              with a note on stderr); 1: none
-#   CATALOG_ROWS_JQ            jq defs: catalog_rows, install_command
+#   CATALOG_ROWS_JQ            jq defs: catalog_row, catalog_rows, install_command
 #   catalog_lines [category]   the terminal browser's list, one line per plugin
+#   catalog_detail <id>        the terminal browser's detail card fields
 # A caller may set CATALOG_RUNNER=(argv...) first to wrap the download (the
 # TUI's gum spinner); the download stays one bounded curl argv either way.
 #
@@ -40,27 +41,29 @@ CATALOG_MAX_BYTES=$((32 * 1024 * 1024))
 # shellcheck disable=SC2016  # jq source: $n is a jq variable
 CATALOG_ROWS_JQ='
   def _s: if type == "string" then gsub("[[:cntrl:]]"; " ") else "" end;
+  def _or($d): if . == "" then $d else . end;
   def install_command:
     if .installAvailable == true
        and (.repo | type == "string" and test("^https://github\\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/?\\z"))
     then "omarchy plugin add " + (.repo | sub("/\\z"; "")) else "" end;
+  def catalog_row:
+    { id,
+      name: ((.name | _s) as $n | if $n == "" then .id else $n end),
+      author: (.author | _s), category: (.category | _s),
+      stars: (.stars | if type == "number" then . elif type == "string" then (tonumber? // 0) else 0 end
+              | if isinfinite or isnan then 0 else . end),
+      tags: (.tags | if type == "array" then map(select(type == "string") | _s) else [] end),
+      badge: (if .verificationStatus == "verified" then "verified"
+              elif .verificationSnapshotStatus == "verified" then "snapshot"
+              else "unverified" end),
+      description: (.description | _s), repo: (.repo | _s),
+      installCommand: install_command, installAvailable: (.installAvailable == true),
+      preview: (.previewThumbnail | _s) };
   def catalog_rows:
-    [ (.plugins // [])[]
-      | objects
+    [ (.plugins // [])[] | objects
       | select(.sourceType == "community")
       | select(.id | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\z"))
-      | { id,
-          name: ((.name | _s) as $n | if $n == "" then .id else $n end),
-          author: (.author | _s), category: (.category | _s),
-          stars: (.stars | if type == "number" then . elif type == "string" then (tonumber? // 0) else 0 end
-                  | if isinfinite or isnan then 0 else . end),
-          tags: (.tags | if type == "array" then map(select(type == "string") | _s) else [] end),
-          badge: (if .verificationStatus == "verified" then "verified"
-                  elif .verificationSnapshotStatus == "verified" then "snapshot"
-                  else "unverified" end),
-          description: (.description | _s), repo: (.repo | _s),
-          installCommand: install_command, installAvailable: (.installAvailable == true),
-          preview: (.previewThumbnail | _s) } ]
+      | catalog_row ]
     | sort_by(-.stars);'
 
 # The terminal browser's list: one selectable line per plugin, id the final
@@ -71,12 +74,29 @@ catalog_lines() {  # catalog_lines [category]
     catalog_rows[]
     | select($cat == "" or .category == $cat)
     | [ ({verified: "✔", snapshot: "◐"}[.badge] // "·"), "  ", .name,
-        "  —  ", (if .author == "" then "?" else .author end),
-        "   ", (if .category == "" then "?" else .category end),
+        "  —  ", (.author | _or("?")),
+        "   ", (.category | _or("?")),
         "   ★", (.stars | tostring),
         (if (.tags | length) > 0 then "   #" + (.tags | join(" #")) else "" end),
         "   ", .id ] | join("")
   ' --arg cat "${1:-}" "$CATALOG"
+}
+
+# The terminal browser's detail card for one id: fifteen NUL-terminated
+# fields in this order (show_detail reads them so): name author repo
+# category stars version vstatus vcoverage vcommit upstream installCommand
+# installAvailable installNote description tags. Unknown id: no output.
+catalog_detail() {  # catalog_detail <id>
+  jq --raw-output0 --arg id "$1" "$CATALOG_ROWS_JQ"'
+    first(.plugins[]? | objects | select(.id == $id))
+    | . as $e | catalog_row as $r
+    | $r.name, ($r.author | _or("?")), $r.repo, ($r.category | _or("?")), ($r.stars | tostring),
+      (.version | _s | _or("?")),
+      (.verificationStatus | _s | _or("unverified")), (.verificationCoverage | _s | _or("none")),
+      (.verificationCommit | _s | _or($e.listingValidatedCommit | _s)), (.upstreamObservedCommit | _s),
+      $r.installCommand, ($r.installAvailable | tostring), (.installNote | _s), $r.description,
+      ($r.tags | if length > 0 then "#" + join("  #") else "" end)
+  ' "$CATALOG"
 }
 declare -p CATALOG_RUNNER >/dev/null 2>&1 || CATALOG_RUNNER=()
 
