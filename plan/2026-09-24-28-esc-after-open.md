@@ -205,3 +205,21 @@ plans a reproduction, not a fix.
 - Debug branch: step 8. It was never pushed, so nothing remote to undo.
 - The only commit that can land on `fix/28` in the no-repro branch is the
   one-line "Open" pointer in the panel plan; `git revert` it.
+
+## Deviations
+
+- **Outcome: closed without the live run (owner decision, 2026-09-24).**
+  Step 3 was attempted once. `omarchy-restart-shell` (called by the step 3
+  and step 5 helper scripts) left the desktop with no shell both times
+  (17:57 and 18:01): the new instance saw the old one still tearing down
+  after a plugin hot-reload, printed "already running" and exited
+  (nixarchy#953). The debug build never loaded, so there is no pb28 data.
+  The owner then chose the no-repro branch of the decision tree on the
+  existing evidence: both sightings predate 4d3035a, after which `o`
+  closes the panel and reopening starts in the list, so the reported path
+  no longer exists. Config was restored byte-identical; the shell was
+  brought back with a single `omarchy-launch-shell`.
+- Step 8 cleanup done: `/tmp/pb28-plugin` removed, `debug/28-esc-focus-log`
+  deleted (never pushed), `/tmp/pb28-*` removed.
+- Lesson for any future live check here: do not call `omarchy-restart-shell`;
+  the shell hot-reloads a plugin when its symlink changes.
