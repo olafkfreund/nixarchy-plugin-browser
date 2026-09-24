@@ -116,12 +116,11 @@
                 xargs -0 -r grep -nHE '\bpacman\b|\byay\b' | grep -vE ':[0-9]+:[[:space:]]*(//|#)' || true)
               test -z "$hits" || { echo "$hits"; exit 1; }
 
-              # The tests, against the packaged files. catalog-list.sh and the
-              # CLI smoke run need the host's /run/current-system/sw (the
-              # scripts pin their PATH to it), so they run outside the sandbox.
+              # The hermetic tier, against the packaged files. Host-tier tests
+              # need the host's /run/current-system/sw (the scripts pin their
+              # PATH to it), so they run outside the sandbox: tests/run.sh host.
               cp -r ${plugin} work && chmod -R u+w work && cp -r ${./tests} work/tests
-              bash work/tests/scan-nix.sh
-              node work/tests/model-check.mjs
+              bash work/tests/run.sh hermetic
               touch $out
             '';
         });
