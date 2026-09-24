@@ -98,6 +98,12 @@ before the code step that fixes it.
    message when `unshare -rn` fails.
    → verify by `bash tests/catalog-list.sh` failing on the first new check
    (`list` exits 5).
+   **Deviation (step 1):** the hostile rows go in a second fixture
+   (`hostile.json`, the good rows plus the hostile ones) instead of the
+   existing one, so every existing check runs unchanged on the original
+   fixture (its `length == 2` and index checks would otherwise have to be
+   rewritten). The test also points `HOME` and the XDG dirs at its temp dir.
+   Recorded after the step 1 commit (`977b1ce`).
 2. `tests/preview.sh`: after the off-switch block (`:43-49`), add two cases.
    (a) Config `{` (malformed): `bash "$LIB" preview
    assets/img/plugins/5-crmne-omarchy-hyprmoncfg-card.webp` exits 4 and
