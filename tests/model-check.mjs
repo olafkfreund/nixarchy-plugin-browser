@@ -100,7 +100,7 @@ for (const bad of ["a\nb", "a\rb", "a\u2028b", "a\u2029b", ""]) assert.equal(M.c
 assert.equal(M.clean("a\u202Eb\u200Bc\u2066d\uFEFF"), "abcd", "bidi and zero-width characters removed")
 assert.equal(M.clean("a\u2028b"), "a b", "line separator becomes a space")
 assert.equal(M.clean("a\nb\tc"), "a\nb\tc", "newline and tab kept")
-assert.ok(!("installCommand" in M.parseRows(JSON.stringify([{ id: "a.b", installCommand: "curl x | sh" }]))[0]), "catalog installCommand is not read")
+assert.ok(!("installCommand" in M.parseRows(JSON.stringify([{ id: "a.b", installCommand: "curl x \u007c sh" }]))[0]), "catalog installCommand is not read")
 assert.equal(M.SHORTCUTS.find(s => s.keys === "c").what, "copy the install command shown in the pane")
 
 // card size

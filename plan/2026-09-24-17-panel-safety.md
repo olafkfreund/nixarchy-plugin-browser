@@ -239,6 +239,11 @@ without a caller that cancels. A leftover headless output is removed with
   hundreds of `[import]`/`[unqualified]` warnings on the base too. The check
   used: zero `Error` lines on base and branch, and the only new warnings are
   those same categories on the added `Text`/`Timer` items.
+- **Integration, stacked on #15/#16.** #15's `tests/audit-self.sh` requires
+  the repo to scan with no FIND; the `tests/model-check.mjs` row whose
+  `installCommand` pipes curl to a shell matched `curl-pipe-shell`. The
+  fixture spells the pipe as the JS escape `|` (the same string at
+  runtime, so the assertion is unchanged).
 
 ## Step notes
 
