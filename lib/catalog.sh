@@ -7,6 +7,8 @@
 #   catalog_usable <file>      a regular, own, non-empty file within the ceiling
 #   fetch_catalog [--force]    0: a usable catalog is in place (fresh, or stale
 #                              with a note on stderr); 1: none
+#   CATALOG_ROWS_JQ            jq defs: catalog_rows, install_command
+#   catalog_lines [category]   the terminal browser's list, one line per plugin
 # A caller may set CATALOG_RUNNER=(argv...) first to wrap the download (the
 # TUI's gum spinner); the download stays one bounded curl argv either way.
 #
@@ -27,6 +29,54 @@ CACHE_TTL=3600
 # it is parsed, so a broken or hostile endpoint can neither fill the disk during
 # the download nor hand jq an unbounded document.
 CATALOG_MAX_BYTES=$((32 * 1024 * 1024))
+
+# The one projection of the untrusted catalog, shared by `catalog.sh list` (the
+# panel) and the terminal browser. Every field may be missing or of any type:
+# a bad field is coerced to a safe value; only an entry without a usable id is
+# dropped. Control characters never reach a terminal or the panel. Regexes end
+# in \z, not $: in jq, $ also matches before a trailing newline.
+# The install command is built from the checked GitHub repo, never copied from
+# the catalog's installCommand.
+CATALOG_ROWS_JQ='
+  def _s: if type == "string" then gsub("[[:cntrl:]]"; " ") else "" end;
+  def install_command:
+    if .installAvailable == true
+       and (.repo | type == "string" and test("^https://github\\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/?\\z"))
+    then "omarchy plugin add " + (.repo | sub("/\\z"; "")) else "" end;
+  def catalog_rows:
+    [ (.plugins // [])[]
+      | objects
+      | select(.sourceType == "community")
+      | select(.id | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\z"))
+      | { id,
+          name: ((.name | _s) as $n | if $n == "" then .id else $n end),
+          author: (.author | _s), category: (.category | _s),
+          stars: (.stars | if type == "number" then . elif type == "string" then (tonumber? // 0) else 0 end
+                  | if isinfinite or isnan then 0 else . end),
+          tags: (.tags | if type == "array" then map(select(type == "string") | _s) else [] end),
+          badge: (if .verificationStatus == "verified" then "verified"
+                  elif .verificationSnapshotStatus == "verified" then "snapshot"
+                  else "unverified" end),
+          description: (.description | _s), repo: (.repo | _s),
+          installCommand: install_command, installAvailable: (.installAvailable == true),
+          preview: (.previewThumbnail | _s) } ]
+    | sort_by(-.stars);'
+
+# The terminal browser's list: one selectable line per plugin, id the final
+# token. Badge: ✔ verified snapshot & upstream matches · ◐ snapshot verified
+# but upstream moved (update unverified) · · unverified.
+catalog_lines() {  # catalog_lines [category]
+  jq -r "$CATALOG_ROWS_JQ"'
+    catalog_rows[]
+    | select($cat == "" or .category == $cat)
+    | [ ({verified: "✔", snapshot: "◐"}[.badge] // "·"), "  ", .name,
+        "  —  ", (if .author == "" then "?" else .author end),
+        "   ", (if .category == "" then "?" else .category end),
+        "   ★", (.stars | tostring),
+        (if (.tags | length) > 0 then "   #" + (.tags | join(" #")) else "" end),
+        "   ", .id ] | join("")
+  ' --arg cat "${1:-}" "$CATALOG"
+}
 declare -p CATALOG_RUNNER >/dev/null 2>&1 || CATALOG_RUNNER=()
 
 # A cached catalog is only read if it is a regular file (not a symlink) owned by
@@ -76,10 +126,13 @@ PREVIEW_CACHE_MAX=$((50 * 1024 * 1024))
 PREVIEW_RE='^assets/img/plugins/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(webp|png)$'
 PREVIEW_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/nixarchy-plugin-browser/config.json"
 
-# "previews": false in the plugin's config turns fetching off entirely.
+# "previews": false in the plugin's config turns fetching off entirely. A
+# config that exists but cannot be read counts as off: the switch fails closed.
 previews_enabled() {
-  [[ -f $PREVIEW_CONFIG ]] || return 0
-  [[ $(jq -r '.previews' "$PREVIEW_CONFIG" 2>/dev/null) != false ]]
+  [[ -e $PREVIEW_CONFIG ]] || return 0
+  local v
+  v=$(jq -r '.previews' "$PREVIEW_CONFIG" 2>/dev/null) || return 1
+  [[ $v != false ]]
 }
 
 # Only the marketplace's own image folder; the host is never taken from input.
@@ -136,18 +189,7 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
     list)
       force=""; [[ ${2:-} == --refresh ]] && force=--force
       fetch_catalog $force || { echo "catalog: no usable catalog (at most $((CATALOG_MAX_BYTES / 1048576)) MiB)" >&2; exit 3; }
-      jq -c '
-        [ .plugins[]
-          | select(.sourceType == "community")
-          | { id, name: (.name // .id), author: (.author // ""), category: (.category // ""),
-              stars: (.stars // 0), tags: (.tags // []),
-              badge: (if .verificationStatus == "verified" then "verified"
-                      elif .verificationSnapshotStatus == "verified" then "snapshot"
-                      else "unverified" end),
-              description: (.description // ""), repo: (.repo // ""),
-              installCommand: (.installCommand // ""), installAvailable: (.installAvailable == true),
-              preview: (.previewThumbnail // "") } ]
-        | sort_by(-.stars)' "$CATALOG" ;;
+      jq -c "$CATALOG_ROWS_JQ catalog_rows" "$CATALOG" ;;
     preview) fetch_preview "${2:-}"; exit $? ;;
     *) echo "usage: catalog.sh list [--refresh] | catalog.sh preview <relpath>" >&2; exit 2 ;;
   esac
