@@ -213,6 +213,12 @@ STAGE="$(mktemp -d "${TMPDIR:-/tmp}/omarchy-audit.XXXXXX")"
 # A plugin copied from /nix/store keeps its read-only modes (cp -a); make the
 # tree writable first or rm cannot unlink it and the stage leaks into /tmp.
 trap 'chmod -R u+w -- "$STAGE" 2>/dev/null; rm -rf -- "$STAGE"' EXIT
+# A cancel (the panel's Cancel sends TERM) also stops the staging child that
+# _bound_run started in its own process group; exit then runs the EXIT trap.
+# It can lag by the current foreground command (a 0.5 s sleep, a bounded du).
+BOUND_PID=""
+_on_signal() { [[ -n ${BOUND_PID:-} ]] && _kill_group "$BOUND_PID"; exit "$1"; }
+trap '_on_signal 143' TERM; trap '_on_signal 130' INT; trap '_on_signal 129' HUP
 CHECKOUT="$STAGE/tree"
 
 # HANCORE-linux's marketplace review (#5581 v2): bin/omarchy-plugin-audit's
@@ -227,6 +233,14 @@ CHECKOUT="$STAGE/tree"
 _dir_bytes() { du -sb -- "$1" 2>/dev/null | cut -f1; }
 _dir_files() { find "$1" -type f 2>/dev/null | wc -l; }
 
+_kill_group() {  # _kill_group <pid>: TERM its process group, 5 s grace, then KILL
+  local pid=$1 grace=$(( SECONDS + 5 ))
+  kill -TERM "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
+  while kill -0 "$pid" 2>/dev/null && (( SECONDS < grace )); do sleep 0.2; done
+  kill -KILL "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
+  wait "$pid" 2>/dev/null
+}
+
 _bound_run() {  # _bound_run <label> <watch-dir> -- <cmd...>
   local label="$1" watch_dir="$2"; shift 2
   [[ ${1:-} == -- ]] && shift
@@ -237,7 +251,7 @@ _bound_run() {  # _bound_run <label> <watch-dir> -- <cmd...>
   # reaches every process it spawns (git's helpers, cp's children), not just
   # the immediate one — bounded cleanup covers the whole subtree.
   setsid "$@" >"$errfile" 2>&1 &
-  pid=$!
+  pid=$!; BOUND_PID=$pid
   while kill -0 "$pid" 2>/dev/null; do
     local elapsed=$(( SECONDS - start_ts ))
     if (( elapsed >= AUDIT_STAGE_DEADLINE_SEC )); then
@@ -253,17 +267,13 @@ _bound_run() {  # _bound_run <label> <watch-dir> -- <cmd...>
       fi
     fi
     if [[ -n $reason ]]; then
-      kill -TERM "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
-      local grace=$(( SECONDS + 5 ))
-      while kill -0 "$pid" 2>/dev/null && (( SECONDS < grace )); do sleep 0.2; done
-      kill -KILL "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null
-      wait "$pid" 2>/dev/null
+      _kill_group "$pid"; BOUND_PID=""
       rm -rf -- "$watch_dir"
       die "$label aborted: $reason" 3
     fi
     sleep 0.5
   done
-  wait "$pid"; local rc=$?
+  wait "$pid"; local rc=$?; BOUND_PID=""
   (( rc == 0 )) || die "$label failed: $(tr -c '[:print:]' ' ' <"$errfile" | cut -c1-160)" 3
   # A transfer that finishes fast can still land over the ceiling before the
   # poll loop ever samples it — check once more right after it exits.
