@@ -129,7 +129,14 @@ omarchy-plugin-audit <id> --install    # install the audited checkout (disabled)
 omarchy-plugin-audit <id> --json       # machine-readable report
 ```
 
-Exit codes: `0` clean · `10` review-required · `20` findings · `2` usage · `3` scan error.
+Exit codes: `0` clean · `10` review-required · `20` findings · `2` usage or refused · `3` scan error.
+A cancelled run (TERM, INT, HUP) stops its clone too and exits `143`, `130` or `129`.
+
+Which URLs are cloned: a marketplace id only through its plain `https://`
+URL; a URL you type may be `https://`, `ssh://`, `git@host:path` or
+`file://`. Anything else (`http://`, `ext::`, an option such as `-u…`) is
+refused. To `--install` a local folder, commit first: the audit refuses when
+the working tree differs from `HEAD`, because `HEAD` is what gets installed.
 
 ## The panel
 

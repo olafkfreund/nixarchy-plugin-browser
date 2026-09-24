@@ -3,6 +3,18 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## 0.5.1
+
+- The audit can no longer be fooled by a file name that forges a scan result
+- No control characters from a plugin or the catalog reach your terminal
+- Only https (catalog) or https, ssh, git@ and file:// (typed) URLs are cloned
+- Symlinks in a plugin are always listed and block --install, never followed
+- A local --install refuses uncommitted changes: it installs exactly what was scanned
+- The scanner reads extensionless and .py files and no longer skips real code as comments
+- Invalid plugin ids and malformed catalog commits are refused before use
+- The audit passes its own plugin honestly: no findings from its own patterns
+- Cancelling an audit also stops its clone
+
 ## 0.5.0
 
 - Opening a plugin shows its screenshot from the marketplace, fetched and checked safely, cached
