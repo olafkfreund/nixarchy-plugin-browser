@@ -172,3 +172,37 @@ a machine that already has it run `omarchy plugin update
 io.github.olafkfreund.nixarchy-plugin-browser` then `omarchy-restart-shell`.
 The screenshots are reverted with the same commits. A leftover headless
 output from step 7 is removed with `hyprctl output remove PBTEST`.
+
+## Deviation (implementation, 2026-09-24)
+
+- **Step 6, loading the branch:** `./install.sh --plugin` cannot load a
+  worktree: it stops at "already registered" when the plugin dir exists, it
+  needs `.git` to be a directory (it is a file in a worktree), and it relinks
+  `~/.local/bin`. The branch was loaded instead by pointing
+  `~/.config/omarchy/plugins/io.github.olafkfreund.nixarchy-plugin-browser`
+  at the worktree and adding the id to `shell.json`'s `plugins` (it was
+  disabled there). Both were put back afterwards, byte for byte, and the shell
+  was restarted once.
+- **Step 6, results:** the plugin loads with no QML warnings. On DP-2
+  (2560×1440, scale 1), the card measured about 957 × 758 against the
+  expected 960 × 760; it was centred and nothing was off-screen. The text is
+  as sharp as the bar's. `?` opens the key sheet and its labels fit their
+  columns. Details open, and the description wraps. The scrim click, a second
+  Esc closing the panel, and the verdict wrap after an audit finishes were not
+  exercised (no synthetic clicks on the user's live desktop); they are
+  checked by hand in the PR.
+- **Step 7, blocked:** on this Hyprland (0.56, Lua config),
+  `hyprctl output create headless PBTEST` made omarchy-shell exit with
+  "The Wayland connection experienced a fatal error: Invalid argument" (it
+  restarted itself), and `hyprctl keyword monitor PBTEST,…` did not change
+  the output's mode (it stayed 1920×1080 at scale 2). PBTEST was removed. It
+  was not retried, so as not to crash the user's shell twice. The
+  small-screen and 4K sizes rest on the `cardExtent` tests in step 1, and
+  the visual check is left for razer (eDP-1) or a manual check.
+- **Step 8, pending:** a user-level `~/.config/omarchy/shell.toml` with
+  `[font] base-size = 14` (created and then removed; the theme file was never
+  touched) triggers a full shell reload. Across two attempts the panel's
+  open/close toggle got out of step with the capture, so no valid base-14
+  shot exists. Left for a manual check.
+- **Step 9, pending:** checked by hand. `BarWidget.qml` is not changed by
+  this branch.

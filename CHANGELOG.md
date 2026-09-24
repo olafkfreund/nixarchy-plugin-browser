@@ -18,6 +18,8 @@ when an update is available. Keep one short line per bullet.
 - The update terminal now offers the shell restart the panel needs
 - The update check is HTTPS-only
 - The terminal browser copies an install command built from the plugin's GitHub repo
+- The panel is a share of your screen and uses your theme's font sizes, so it fits laptops and 4K alike (#16)
+- Text is drawn at its real size, no longer scaled up, so it is as sharp as the bar
 
 ## 0.5.0
 
