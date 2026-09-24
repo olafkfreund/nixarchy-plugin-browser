@@ -9,7 +9,7 @@ import "Model.js" as Model
 // The Plugin Browser on a keybind (Super+Alt+U), the Add Plugin menu row, or
 // the bar button, over whatever you were working in. It holds the keyboard for
 // as long as it is up. The same surface as nixarchy.devenv's menu: a scrim,
-// one card, the view drawn larger so it reads from a distance.
+// one card. The card is a share of the screen, drawn at the theme's sizes.
 //
 //   omarchy-shell shell toggle io.github.olafkfreund.nixarchy-plugin-browser '{}'
 //   … '{"id":"crmne.hyprmoncfg"}'   straight to that plugin's details
@@ -24,8 +24,14 @@ Item {
   property bool opened: false
   property var targetScreen: null
 
-  readonly property real uiScale: 1.45
-  readonly property int viewWidth: Style.space(680)
+  // ponytail: fixed shares, not a setting; the floor and ceiling follow the
+  // theme's base font through Style.space().
+  readonly property real widthShare: 0.6
+  readonly property real heightShare: 0.7
+  readonly property int minCardWidth: Style.space(560)
+  readonly property int minCardHeight: Style.space(420)
+  readonly property int maxCardWidth: Style.space(960)
+  readonly property int maxCardHeight: Style.space(760)
 
   function focusedScreen() {
     var monitor = Hyprland.focusedMonitor
@@ -83,10 +89,8 @@ Item {
 
     BorderSurface {
       id: card
-      width: Math.min(Math.round(root.viewWidth * root.uiScale) + card.contentLeftInset + card.contentRightInset,
-                      Math.round(panel.width * 0.9))
-      height: Math.min(Math.round(view.implicitHeight * root.uiScale) + card.contentTopInset + card.contentBottomInset,
-                       Math.round(panel.height * 0.85))
+      width: Model.cardExtent(panel.width, root.widthShare, root.minCardWidth, root.maxCardWidth, Style.gapsOut)
+      height: Model.cardExtent(panel.height, root.heightShare, root.minCardHeight, root.maxCardHeight, Style.gapsOut)
       anchors.horizontalCenter: parent.horizontalCenter
       y: Math.max(Style.gapsOut, Math.round((panel.height - height) / 3))
       color: Color.popups.background
@@ -107,12 +111,7 @@ Item {
 
         BrowserView {
           id: view
-          // Laid out at its natural size, then drawn uiScale times larger;
-          // input is mapped through the same transform, so clicks still land.
-          width: frame.width / root.uiScale
-          height: frame.height / root.uiScale
-          scale: root.uiScale
-          transformOrigin: Item.TopLeft
+          anchors.fill: parent
           foreground: Color.foreground
           fontFamily: Style.font.family
           onCloseRequested: root.close()
