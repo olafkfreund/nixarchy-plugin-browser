@@ -132,22 +132,22 @@ fi
 catalog_entry() {  # by repo url (normalized) OR by id; echoes one JSON object
   catalog_usable "$CATALOG" || return 1
   jq -e --arg key "$1" '
-    (.plugins // []) as $p
+    [(.plugins | arrays // [])[] | objects] as $p
     | ($key | ascii_downcase | sub("\\.git$";"") | sub("/$";"")) as $k
-    | ( [ $p[] | select((.repo // "" | ascii_downcase | sub("\\.git$";"") | sub("/$";"")) == $k) ]
-        + [ $p[] | select((.id // "" | ascii_downcase) == $k) ] )
+    | ( [ $p[] | select((.repo | strings // "" | ascii_downcase | sub("\\.git$";"") | sub("/$";"")) == $k) ]
+        + [ $p[] | select((.id | strings // "" | ascii_downcase) == $k) ] )
     | .[0] // empty' "$CATALOG" 2>/dev/null
 }
 
 # ------------------------------------------------------- resolve target -> repo
-REPO_URL=""; LOCAL_DIR=""; PLUGIN_ID=""; ENTRY=""
+REPO_URL=""; LOCAL_DIR=""; PLUGIN_ID=""; ENTRY=""; URL_SRC=""
 if [[ -d $TARGET ]]; then
   LOCAL_DIR="$(cd -- "$TARGET" && pwd -P)"           # resolve symlinked dir
   [[ -f $LOCAL_DIR/manifest.json ]] || die "no manifest.json in $LOCAL_DIR — not a plugin folder"
   PLUGIN_ID=$(jq -r '.id // ""' "$LOCAL_DIR/manifest.json" 2>/dev/null)
   REPO_URL=$(git -C "$LOCAL_DIR" remote get-url origin 2>/dev/null || echo "")
 elif [[ $TARGET =~ ^[A-Za-z][A-Za-z0-9+.-]*:// || $TARGET =~ ^git@ ]]; then
-  REPO_URL="$TARGET"                                   # any URL scheme (https, file, ssh, git…)
+  REPO_URL="$TARGET"; URL_SRC=typed                    # url_ok below decides which schemes
 else
   PLUGIN_ID="$TARGET"                                  # treat as marketplace id
 fi
@@ -155,19 +155,42 @@ fi
 fetch_catalog || say "${YEL}note: could not fetch the marketplace catalog; continuing without verification metadata.${RST}"
 [[ -n ${REPO_URL:-} ]] && ENTRY=$(catalog_entry "$REPO_URL")
 [[ -z $ENTRY && -n ${PLUGIN_ID:-} ]] && ENTRY=$(catalog_entry "$PLUGIN_ID")
-if [[ -n $ENTRY && -z $REPO_URL ]]; then REPO_URL=$(jq -r '.repo // ""' <<<"$ENTRY"); fi
+if [[ -n $ENTRY && -z $REPO_URL ]]; then REPO_URL=$(jq -r '.repo // ""' <<<"$ENTRY"); URL_SRC=catalog; fi
 [[ -n $APPLY_PATCH && -n $LOCAL_DIR ]] && die "--apply-patch needs a git URL or marketplace id, not a local folder"
 [[ -n $REPO_URL || -n $LOCAL_DIR ]] || die "could not resolve '$TARGET' to a repo (not a URL, and not a known marketplace id)"
 
-# Refuse a URL that names a git transport helper (ext::, etc.) — same guard
-# `omarchy plugin add` uses. Free if present; a hard refusal on our own if not.
-if [[ -n $REPO_URL && $REPO_URL != /* ]]; then
+# Only these URL kinds are ever cloned. A catalog URL is a plain https URL; a
+# typed one may also be ssh, git@host:path or file://; a local folder's origin
+# (only used by --install) may not be file://. Anything else, including a git
+# option (-...) or a transport helper (ext::...), is refused.
+url_ok() {  # url_ok <url> <catalog|typed|origin>; dies with 2 when refused
+  local u="$1" src="$2" kind
+  local https='^https://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9._~/-]+$'
+  local ssh='^ssh://([A-Za-z0-9._-]+@)?[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9._~/-]+$'
+  local scp='^git@[A-Za-z0-9.-]+:[A-Za-z0-9._~/-]+$'
+  local file='^file:///[A-Za-z0-9._~/-]+$'
+  if   [[ $u =~ $https ]]; then kind=https
+  elif [[ $u =~ $ssh ]];   then kind=ssh
+  elif [[ $u =~ $scp ]];   then kind=git@
+  elif [[ $u =~ $file ]];  then kind=file://
+  elif [[ $u == -* ]];     then kind="a git option"
+  else kind="this URL form"; fi
+  case "$src:$kind" in
+    *:https|typed:ssh|typed:git@|typed:file://|origin:ssh|origin:git@) ;;
+    *) die "refusing this URL: $kind not allowed for a $src source" 2 ;;
+  esac
+  # The same guard `omarchy plugin add` uses, when it is installed.
   if [[ -x "$OMARCHY_BIN/omarchy-git-url-check" ]]; then
-    "$OMARCHY_BIN/omarchy-git-url-check" "$REPO_URL" || die "refusing this URL" 2
-  elif [[ $REPO_URL == -* || $REPO_URL =~ ^[A-Za-z0-9][A-Za-z0-9+.-]*:: ]]; then
-    die "URL names a git option or transport helper, not a repository" 2
+    "$OMARCHY_BIN/omarchy-git-url-check" "$u" || die "refusing this URL" 2
   fi
+}
+if [[ -n $LOCAL_DIR ]]; then
+  (( DO_INSTALL )) && [[ -n $REPO_URL ]] && url_ok "$REPO_URL" origin
+elif [[ -n $REPO_URL ]]; then
+  url_ok "$REPO_URL" "$URL_SRC"
 fi
+# The protocols git may use for the clone, redirects included.
+CLONE_PROTO=https; [[ $URL_SRC == typed ]] && CLONE_PROTO=https:ssh:file
 
 # --------------------------------------------------------- verification posture
 VERIFIED_COMMIT=$(jq -r '.verificationCommit // .listingValidatedCommit // ""' <<<"${ENTRY:-{}}" 2>/dev/null)
@@ -248,14 +271,14 @@ _bound_run() {  # _bound_run <label> <watch-dir> -- <cmd...>
   fi
 }
 
-clone_hardened() {  # into $CHECKOUT
+clone_hardened() {  # clone_hardened <url> <dest> <allowed git protocols>
   # symlinks off (blunts the symlink+hooks class), hooks disabled, no submodule
   # recursion, no credential/terminal prompts, bounded by _bound_run above.
-  rm -rf -- "$CHECKOUT"
-  GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -oBatchMode=yes" \
-    _bound_run "clone" "$CHECKOUT" -- \
+  rm -rf -- "$2"
+  GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -oBatchMode=yes" GIT_ALLOW_PROTOCOL="$3" \
+    _bound_run "clone" "$2" -- \
     git -c core.symlinks=false -c core.hooksPath=/dev/null -c advice.detachedHead=false \
-      clone --quiet --no-checkout -- "$1" "$CHECKOUT"
+      clone --quiet --no-checkout -- "$1" "$2"
 }
 
 copy_hardened() {  # $1=source dir -> $CHECKOUT
@@ -292,7 +315,7 @@ if [[ -n $LOCAL_DIR ]]; then
   fi
   [[ -n $SCAN_COMMIT ]] || SCAN_COMMIT="(local files, not a git checkout)"
 else
-  clone_hardened "$REPO_URL" || die "git clone failed: $(tr -c '[:print:]' ' ' <"$STAGE/clone.err" | cut -c1-160)" 3
+  clone_hardened "$REPO_URL" "$CHECKOUT" "$CLONE_PROTO" || die "git clone failed: $(tr -c '[:print:]' ' ' <"$STAGE/clone.err" | cut -c1-160)" 3
   DEFAULT_BRANCH=$(git -C "$CHECKOUT" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
   DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
   if [[ -n $PIN_COMMIT ]]; then SCAN_COMMIT="$PIN_COMMIT"
@@ -603,7 +626,7 @@ if (( DO_INSTALL )); then
     install_branch="${DEFAULT_BRANCH:-main}"
     [[ -n $APPLY_PATCH ]] && install_branch=nixarchy-local   # ff-only updates stop here
     add_src="$STAGE/install-src"
-    git -c core.symlinks=false -c advice.detachedHead=false clone --quiet "$CHECKOUT" "$add_src" 2>/dev/null || cp -a "$CHECKOUT" "$add_src"
+    GIT_ALLOW_PROTOCOL=file git -c core.symlinks=false -c advice.detachedHead=false clone --quiet "$CHECKOUT" "$add_src" 2>/dev/null || cp -a "$CHECKOUT" "$add_src"
     git -C "$add_src" -c advice.detachedHead=false checkout -B "$install_branch" "$SCAN_COMMIT" --quiet 2>/dev/null || true
     [[ -n $REPO_URL ]] && git -C "$add_src" remote set-url origin "$REPO_URL" 2>/dev/null || true
     say "  Installing the audited checkout (${SCAN_COMMIT:0:12}) — DISABLED, per Omarchy's review-first flow…"

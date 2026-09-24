@@ -328,3 +328,11 @@ to back out all, revert the merge commit of the PR. Order matters in one case:
 reverting item 4 also breaks the item 5, 3 and 9 tests, which use typed
 `file://` and the new `clone_hardened` arguments, so revert those first. An
 installed plugin is unaffected by a rollback; the audit only reads it.
+
+## Deviations
+
+- **Step 3 (item 4).** `catalog_entry` also reads `.repo` and `.id` through
+  `strings`, so one object with a non-string `repo` or `id` (e.g. `{id:5,
+  repo:7}`, in the test) cannot make every lookup fail either; same junk-row
+  class as the non-object items. `url_ok` names the refused kind (`https`
+  form, `ssh`, `git@`, `file://`, `a git option`, `this URL form`).
