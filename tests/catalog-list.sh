@@ -80,13 +80,13 @@ ROWS=$(jq length <<<"$OUT")
 
 # --- the terminal's list: the real catalog_lines from lib/catalog.sh ----------
 fail() { echo "FAIL: $1"; printf '%s\n' "${2:-}"; exit 1; }
-# shellcheck source=../lib/catalog.sh
+# shellcheck disable=SC2034 source=../lib/catalog.sh  # CATALOG is read by catalog_lines
 LINES=$(CATALOG="$FX/hostile.json"; source "$LIB"; catalog_lines) || fail "catalog_lines exited $?"
 [[ $(wc -l <<<"$LINES") == "$ROWS" ]] || fail "catalog_lines: expected $ROWS lines" "$LINES"
 [[ $(awk '{print $NF}' <<<"$LINES" | jq -Rsc 'split("\n") | map(select(. != ""))') == "$GOOD" ]] \
   || fail "catalog_lines: the last token is not the id" "$LINES"
 grep -qxF '·  c.empty  —  ?   System   ★0   c.empty' <<<"$LINES" || fail "catalog_lines: empty author is not '?'" "$LINES"
-# shellcheck source=../lib/catalog.sh
+# shellcheck disable=SC2034 source=../lib/catalog.sh  # CATALOG is read by catalog_lines
 SYS=$(CATALOG="$FX/hostile.json"; source "$LIB"; catalog_lines System) || fail "catalog_lines System exited $?"
 [[ $(awk '{print $NF}' <<<"$SYS" | paste -sd' ') == "c.str5 a.low c.empty" ]] || fail "catalog_lines System" "$SYS"
 

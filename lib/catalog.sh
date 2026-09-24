@@ -37,6 +37,7 @@ CATALOG_MAX_BYTES=$((32 * 1024 * 1024))
 # in \z, not $: in jq, $ also matches before a trailing newline.
 # The install command is built from the checked GitHub repo, never copied from
 # the catalog's installCommand.
+# shellcheck disable=SC2016  # jq source: $n is a jq variable
 CATALOG_ROWS_JQ='
   def _s: if type == "string" then gsub("[[:cntrl:]]"; " ") else "" end;
   def install_command:
