@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 issue: 18
 spec: spec/2026-09-24-18-cli-robustness.md
 ---
