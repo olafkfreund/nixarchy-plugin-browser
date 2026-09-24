@@ -216,6 +216,21 @@
               lib.attrValues results
             )) "hm-module: ${builtins.toJSON results}";
             pkgs.writeText "nixarchy-plugin-browser-hm-module" (builtins.toJSON results);
+
+          # Text sizes are bare Style.font.* tokens; no multiplier comes back (#26).
+          no-text-multiplier =
+            pkgs.runCommand "nixarchy-plugin-browser-no-text-multiplier"
+              {
+                nativeBuildInputs = with pkgs; [
+                  gnugrep
+                  findutils
+                  gnused
+                ];
+              }
+              ''
+                bash ${./tests/no-text-multiplier.sh} ${self}
+                touch $out
+              '';
         }
       );
     };
