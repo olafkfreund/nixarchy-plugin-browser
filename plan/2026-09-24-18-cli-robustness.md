@@ -77,7 +77,7 @@ before the code step that fixes it.
    `null`, `7`, `{"id": 42}`, `{"id": "c.bad stars"}`, `{"id": "c.nl\n"}`,
    `"stars": "5"`, `"stars": "abc"`, `"stars": "nan"`, `"tags": "x"`,
    `"tags": ["y", 1]`, `"name": "E\u001b[31m"`, `"name": ""` with
-   `"author": ""`, a row with `"installCommand": "curl x | sh"` and a GitHub
+   `"author": ""`, a row with `"installCommand": "curl x \u007c sh"` and a GitHub
    repo, and a row with `installAvailable: true` and
    `"repo": "https://gitlab.com/a/b"`. Keep every existing check. Add:
    `list` exits 0; the bad-id rows are absent and every other community row
@@ -104,6 +104,11 @@ before the code step that fixes it.
    fixture (its `length == 2` and index checks would otherwise have to be
    rewritten). The test also points `HOME` and the XDG dirs at its temp dir.
    Recorded after the step 1 commit (`977b1ce`).
+   **Deviation (integration, stacked on #15):** #15's `tests/audit-self.sh`
+   requires the repo to scan with no FIND, and the curl-to-shell row matched
+   `curl-pipe-shell`. The fixture spells the pipe as the JSON escape
+   `|` (jq decodes it to the same string, so the test is unchanged), and
+   this plan's step text does the same.
 2. `tests/preview.sh`: after the off-switch block (`:43-49`), add two cases.
    (a) Config `{` (malformed): `bash "$LIB" preview
    assets/img/plugins/5-crmne-omarchy-hyprmoncfg-card.webp` exits 4 and
@@ -125,6 +130,10 @@ before the code step that fixes it.
      written (`1.<30 digits>.0` has major 1). The test asserts the two cases
      it meant: `<30 nines>.0.0 > 99.0.0` (a 30-digit major part) and
      `1.<30 nines>.0 > 1.99.0` (a 30-digit middle part).
+     **Deviation (integration, stacked on #19):** #19 added its own
+     `tests/update.sh` (check/dismiss, `# tier: host`). The two are one file:
+     #19's checks run first, then these, after removing #19's off-switch
+     config and cache so the `file://` check runs with the check enabled.
    - `changelog_notes` over a fixture CHANGELOG with `## 1.100000.0`
      (bullet `new`) and `## 1.99999.0` (bullet `old`), installed `1.99999.0`,
      latest `1.100000.0`, prints exactly `new`. This also proves the bash

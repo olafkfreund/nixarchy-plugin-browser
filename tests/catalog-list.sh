@@ -59,7 +59,7 @@ cat >"$FX/hostile.json" <<'EOF'
   { "id": "c.esc", "name": "E\u001b[31m", "author": "s", "category": "Media", "sourceType": "community" },
   { "id": "c.empty", "name": "", "author": "", "category": "System", "sourceType": "community" },
   { "id": "c.curl", "author": "s", "category": "Media", "sourceType": "community", "installAvailable": true,
-    "repo": "https://github.com/c/curl", "installCommand": "curl x | sh" },
+    "repo": "https://github.com/c/curl", "installCommand": "curl x \u007c sh" },
   { "id": "c.gitlab", "author": "s", "category": "Media", "sourceType": "community", "installAvailable": true,
     "repo": "https://gitlab.com/a/b", "installCommand": "omarchy plugin add https://gitlab.com/a/b" }
 ] }
