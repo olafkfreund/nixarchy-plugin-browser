@@ -120,15 +120,22 @@ FocusScope {
     root.confirmOpen = false
     Qt.callLater(root.focusForMode)
   }
-  function scrollReport(dy) {
-    report.contentY = Math.max(0, Math.min(Math.max(0, report.contentHeight - report.height),
-                                           report.contentY + dy * Style.space(40)))
+  function scroll(flick, dy) {
+    flick.contentY = Math.max(0, Math.min(Math.max(0, flick.contentHeight - flick.height),
+                                          flick.contentY + dy * Style.space(40)))
   }
 
   // Keys the whole view shares; true when handled.
   function commonKey(event) {
     if (root.helpOpen) {
-      if (event.key === Qt.Key_Escape || event.text === "?" || event.key === Qt.Key_Q) root.helpOpen = false
+      switch (event.key) {
+        case Qt.Key_Down: case Qt.Key_J: root.scroll(sheet.flick, 1); break
+        case Qt.Key_Up: case Qt.Key_K: root.scroll(sheet.flick, -1); break
+        case Qt.Key_PageDown: root.scroll(sheet.flick, 10); break
+        case Qt.Key_PageUp: root.scroll(sheet.flick, -10); break
+        default:
+          if (event.key === Qt.Key_Escape || event.text === "?" || event.key === Qt.Key_Q) root.helpOpen = false
+      }
       return true
     }
     if (event.text === "?") { root.helpOpen = true; return true }
@@ -292,8 +299,8 @@ FocusScope {
           case Qt.Key_I: if (root.selected.installAvailable && !BrowserState.installing) root.confirmOpen = true; break
           case Qt.Key_C: if (BrowserState.copy(Model.installCommandFor(root.selected))) root.copiedFor = id; break
           case Qt.Key_O: if (BrowserState.openRepo(root.selected.repo)) root.closeRequested(); break
-          case Qt.Key_J: case Qt.Key_Down: root.scrollReport(1); break
-          case Qt.Key_K: case Qt.Key_Up: root.scrollReport(-1); break
+          case Qt.Key_J: case Qt.Key_Down: root.scroll(report, 1); break
+          case Qt.Key_K: case Qt.Key_Up: root.scroll(report, -1); break
           default: return
         }
         event.accepted = true
@@ -472,6 +479,7 @@ FocusScope {
   }
 
   ShortcutSheet {
+    id: sheet
     anchors.fill: parent
     visible: root.helpOpen
     foreground: root.foreground
