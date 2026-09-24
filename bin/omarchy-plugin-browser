@@ -27,7 +27,8 @@ FORCE=0; ONLY_CAT=""
 while (( $# )); do
   case "$1" in
     --refresh) FORCE=1; shift ;;
-    --category) ONLY_CAT="${2:-}"; shift 2 ;;
+    --category) [[ -n ${2:-} && $2 != -* ]] || { echo "browser: --category needs a category name" >&2; exit 2; }
+                ONLY_CAT=$2; shift 2 ;;
     -h|--help) sed -n '2,/^set -uo/p' "$0" | sed 's/^# \{0,1\}//; /^set -uo/d'; exit 0 ;;
     *) echo "browser: unknown option: $1" >&2; exit 2 ;;
   esac
@@ -48,32 +49,11 @@ fetch() {
   exit 3
 }
 
-# Badge: ✔ verified snapshot & upstream matches · ◐ snapshot verified but upstream
-# moved (update unverified) · · unverified.
-badge_jq='
-  def badge:
-    if .verificationStatus=="verified" then "✔"
-    elif .verificationSnapshotStatus=="verified" then "◐"
-    else "·" end;'
-
-list_lines() {  # one selectable line per plugin; id is the final token
-  jq -r "$badge_jq"'
-    .plugins
-    | map(select(.sourceType=="community"))
-    | ( if $cat=="" then . else map(select(.category==$cat)) end )
-    | sort_by(-( .stars // 0 ))
-    | .[]
-    | [ badge, "  ",
-        (.name // .id),
-        "  —  ", (.author // "?"),
-        "   ", (.category // "?"),
-        "   ★", ((.stars // 0)|tostring),
-        (if (.tags|length)>0 then "   #" + (.tags|join(" #")) else "" end),
-        "   ", .id ] | join("")
-  ' --arg cat "$ONLY_CAT" "$CATALOG"
+# The raw entry, with control characters as spaces in every string it prints.
+entry_by_id() {
+  jq -c --arg id "$1" 'first(.plugins[] | objects | select(.id == $id))
+    | walk(if type == "string" then gsub("[[:cntrl:]]"; " ") else . end)' "$CATALOG"
 }
-
-entry_by_id() { jq -c --arg id "$1" '.plugins[] | select(.id==$id)' "$CATALOG" | head -1; }
 
 show_detail() {  # $1 = id
   local e; e=$(entry_by_id "$1"); [[ -n $e ]] || return
@@ -85,11 +65,12 @@ show_detail() {  # $1 = id
   vcov=$(jq -r '.verificationCoverage//"none"' <<<"$e")
   vcommit=$(jq -r '.verificationCommit//.listingValidatedCommit//""' <<<"$e")
   upstream=$(jq -r '.upstreamObservedCommit//""' <<<"$e")
-  install=$(jq -r '.installCommand//""' <<<"$e")
+  install=$(jq -r "$CATALOG_ROWS_JQ install_command" <<<"$e")   # built from the checked repo
   avail=$(jq -r '.installAvailable//false' <<<"$e")
   note=$(jq -r '.installNote//""' <<<"$e")
   desc=$(jq -r '.description//""' <<<"$e")
-  tags=$(jq -r 'if (.tags|length)>0 then "#"+(.tags|join("  #")) else "" end' <<<"$e")
+  tags=$(jq -r '(.tags | if type == "array" then map(strings) else [] end) as $t
+                | if ($t | length) > 0 then "#" + ($t | join("  #")) else "" end' <<<"$e")
 
   local vline
   case "$vstat/$vcov" in
@@ -150,7 +131,7 @@ main() {
   local total; total=$(jq '.plugins | map(select(.sourceType=="community")) | length' "$CATALOG")
   while true; do
     local line id
-    line=$(list_lines | gum filter --height 20 --prompt "🔎 " \
+    line=$(catalog_lines "$ONLY_CAT" | gum filter --height 20 --prompt "🔎 " \
       --placeholder "Search $total plugins by name, author, tag, category…  (Esc to quit)" \
       --indicator "▸" --header "Omarchy plugin marketplace   ✔ verified   ◐ snapshot-verified, update pending   · unverified") || break
     id="${line##* }"                 # id is the final whitespace-delimited token
