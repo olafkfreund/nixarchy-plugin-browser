@@ -208,7 +208,7 @@ first" for a local `--install`. CHANGELOG gets a `0.5.1` section;
       - fixture repo commits `link.qml -> /usr/share/x`; typed `file://`
         audit `--json` has a NIX `fhs-path` at `link.qml:1`;
       - git folder with an https `origin`, one commit, plus an untracked
-        `evil.qml -> /etc/passwd`, audited through a symlink to the folder:
+        `evil.qml` linking to `/etc/passwd`, audited through a symlink to the folder:
         `--json` lists `evil.qml` under symlinks, `--install` prints
         "Refusing --install" and `$HOME/.config/omarchy/plugins` does not
         exist, `--export-tree <tmp>/x` exits 20;
@@ -237,8 +237,8 @@ first" for a local `--install`. CHANGELOG gets a `0.5.1` section;
    1. `tests/audit-scan-blindspots.sh` (hermetic), scanner only: FIND
       `curl-pipe-shell` at `docs/runme:2`; FIND `dynamic-code-load` for a JS
       line `  * eval(x)` outside a block and none for one inside `/* … */`;
-      FIND `curl-pipe-shell` for a shell line `//usr/bin/curl x | sh`; FIND
-      `privileged-process-control-from-shared-temp` for `/tmp/a.pid` plus
+      FIND `curl-pipe-shell` for a shell line `//usr/bin/curl x` piped to `sh`; FIND
+      `privileged-process-control-from-shared-temp` for a `.pid` file in `/tmp` plus
       `sudo nice kill 1`. → verify red with GNU grep.
    2. scan: the `find` change, `code_lines`, the `.*` regex.
       → verify green, and `tests/scan-nix.sh` still `ok`.
@@ -258,7 +258,7 @@ first" for a local `--install`. CHANGELOG gets a `0.5.1` section;
 8. **Item 8.**
    1. `tests/audit-self.sh` (hermetic): the scanner on the repo root gives no
       FIND, no record with path `lib/omarchy-plugin-scan.sh`, no NIX record;
-      a copy of the repo with `echo 'u ALL=(ALL) NOPASSWD: ALL'` added to a
+      a copy of the repo with a sudoers line granting `ALL` with `NOPASSWD` added to a
       `.sh` still gives the FIND. → verify red.
    2. scan: reword the detector literals; `bin/nixarchy-plugin-fix:128`.
       → verify green, plus `tests/scan-nix.sh` and every earlier
@@ -360,3 +360,12 @@ installed plugin is unaffected by a rollback; the audit only reads it.
   plain audit". The malformed-commit note goes to stderr, so `--json` stdout
   stays one JSON document; a malformed `upstreamObservedCommit` is dropped
   without a note (it is not a verification claim).
+- **Step 8 (item 8).** "No record with path `lib/omarchy-plugin-scan.sh`" is
+  checked for FIND, CAP and NIX only: "INFO rules stay" as written, so the
+  scanner's own lines still give INFO `network-access` / `filesystem-write`
+  (informational, never part of the outcome). The repo's other files had to
+  pass too: this plan's own step text (steps 4, 6, 7) quoted hit lines
+  verbatim and gave FIND / NIX records, so those four lines now describe the
+  fixtures instead of quoting them, and `tests/audit-scan-blindspots.sh`
+  passes its hit words through `printf %s`. The test scans a copy of the repo
+  without `.git`, `.claude/` and `result*`.

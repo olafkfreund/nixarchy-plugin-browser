@@ -125,7 +125,7 @@ Fix the findings that are real problems on nixarchy, with the smallest changes.
 - Do not run the plugin, install anything, rebuild the system, enable plugins,
   or touch ~/.config/omarchy.
 - Prefer command names resolved from PATH (or /run/current-system/sw/bin) over
-  FHS paths; use \$OMARCHY_PATH instead of /usr/share/omarchy.
+  FHS paths; use \$OMARCHY_PATH instead of the /usr/share path.
 - If the plugin needs a package, write one line per package to ../needs.txt as
   'nixarchy pkg add <attr>'. Do not install it.
 - When done, list what you changed and why."

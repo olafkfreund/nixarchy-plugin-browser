@@ -107,13 +107,20 @@ scan() {  # scan <kind> <id> <regex> [file-filter-regex] [ignore-regex]
   done
 }
 
+# Every literal word in a FIND, CAP or NIX detector is spelled with one letter
+# in brackets (pac[m]an, NOPASSW[D], sud[o], /op[t]/): it matches exactly the
+# plain word, but the detector's own line does not, so this scanner (and
+# nixarchy's build check, programs.nixarchy.plugins, which rejects any plugin
+# whose code names pacman or yay) never reads a detector as a caller. Keep the
+# rule when adding a detector; tests/audit-self.sh checks it.
+
 # =============================================================================
 # FINDINGS  (a match here means "needs fixes" — the marketplace would block it)
 # =============================================================================
 
 # curl-pipe-shell: content fetched then handed straight to a shell.
 scan FIND curl-pipe-shell \
-  '(curl|wget)[^|]*\|[[:space:]]*(sudo[[:space:]]+)?(ba|z|da)?sh\b'
+  '(curl|wget)[^|]*\|[[:space:]]*(sud[o][[:space:]]+)?(ba|z|da)?sh\b'
 scan FIND curl-pipe-shell \
   '(eval|source|\.)[[:space:]]*[("<`$]+[^)]*(curl|wget)\b'
 scan FIND curl-pipe-shell \
@@ -135,7 +142,7 @@ done
 # with no detached checkout of a pinned commit anywhere in the same file.
 for f in "${TEXT[@]}"; do
   grep -qE 'git[[:space:]]+clone[[:space:]]+(--[a-z=0-9]+[[:space:]]+)*https?://' -- "$f" 2>/dev/null || continue
-  grep -qE '(cargo[[:space:]]+build|make\b|npm[[:space:]]+(ci|install|run)|pnpm|yarn|python[0-9]?[[:space:]]+setup\.py|\./configure|ninja\b|go[[:space:]]+build|\./[A-Za-z0-9_./-]+\.sh)' -- "$f" 2>/dev/null || continue
+  grep -qE '(cargo[[:space:]]+build|make\b|npm[[:space:]]+(ci|install|run)|pnpm|yarn|python[0-9]?[[:space:]]+setup\.py|\./configur[e]|ninja\b|go[[:space:]]+build|\./[A-Za-z0-9_./-]+\.sh)' -- "$f" 2>/dev/null || continue
   if ! grep -qE 'git[[:space:]]+(-C[[:space:]]+\S+[[:space:]]+)?checkout[[:space:]]+([0-9a-f]{40}|--detach)' -- "$f" 2>/dev/null; then
     ln=$(grep -nE 'git[[:space:]]+clone' -- "$f" | head -1 | cut -d: -f1)
     rel="${f#"$TARGET"/}"
@@ -145,13 +152,13 @@ done
 
 # sudoers-dangerous-passwordless-command: NOPASSWD granting a broad surface.
 scan FIND sudoers-dangerous-passwordless-command \
-  'NOPASSWD:[[:space:]]*(ALL|/bin/(ba|z)?sh|/usr/bin/(ba|z)?sh|/usr/bin/env|.*\*)'
+  'NOPASSW[D]:[[:space:]]*(ALL|/bin/(ba|z)?sh|/usr/bin/(ba|z)?sh|/usr/bin/env|.*\*)'
 
 # privileged-process-control-from-shared-temp: PID read from a predictable
 # /tmp file then fed to privileged process control.
 for f in "${TEXT[@]}"; do
   grep -qE '/tmp/[A-Za-z0-9._-]*(pid|PID)' -- "$f" 2>/dev/null || continue
-  if grep -qE '(sudo|pkexec).*\b(kill|systemctl|renice)' -- "$f" 2>/dev/null; then
+  if grep -qE '(sud[o]|pkexe[c]).*\b(kill|systemct[l]|renice)' -- "$f" 2>/dev/null; then
     ln=$(grep -nE '/tmp/[A-Za-z0-9._-]*(pid|PID)' -- "$f" | head -1 | cut -d: -f1)
     rel="${f#"$TARGET"/}"
     emit FIND privileged-process-control-from-shared-temp "$rel:${ln:-1}" "reads a PID from a shared /tmp path used near privileged process control"
@@ -167,7 +174,7 @@ done
 # UI (the first-party wifiqr panel assigns `root.password`), and NOT bare env
 # var names, which are handled as a capability below.
 scan FIND credential-path-access \
-  '(\.ssh/|id_rsa|id_ed25519|id_ecdsa|\.aws/credentials|\.config/gh/hosts|\.netrc|\.gnupg|/keyrings?/|cookies\.sqlite|Login Data|login\.keychain|\.mozilla/[^"'\'' ]*key|wallet\.dat|password-store)'
+  '(\.ss[h]/|id_rs[a]|id_ed2551[9]|id_ecds[a]|\.aw[s]/credentials|\.config/g[h]/hosts|\.netr[c]|\.gnup[g]|/keyrings?/|cookies\.sqlite|Login Dat[a]|login\.keychain|\.mozilla/[^"'\'' ]*key|wallet\.dat|password-stor[e])'
 
 # dynamic-code-load: code assembled or fetched at runtime and executed. This is
 # the shell-plugin analogue of curl|sh — the whole reason the manual says
@@ -183,20 +190,17 @@ scan FIND dynamic-code-load \
 # =============================================================================
 # CAPABILITIES  (review-worthy on their own, not a block)
 # =============================================================================
-scan CAP installer               '(^|/)(install|installer|setup|uninstall)([-_.]|$)|makefile|Makefile' '(\.sh|\.mjs|\.js|\.py|akefile)$'
-# pac[m]an / y[a]y match exactly the words pacman / yay. They are spelled this
-# way because nixarchy's build check (programs.nixarchy.plugins) rejects any
-# plugin whose code names them, and a detector must not read as a caller.
-scan CAP package-manager         '\b(pac[m]an|y[a]y|paru|apt-get|apt|dnf|zypper|pip[0-9]?[[:space:]]+install|npm[[:space:]]+install|cargo[[:space:]]+install|flatpak[[:space:]]+install|brew[[:space:]]+install)\b'
-scan CAP privilege               '(^|[^A-Za-z_-])(sudo|pkexec)([^A-Za-z_-]|$)'
-scan CAP service-management      '\b(systemctl|systemd-run)\b|\.service["'\'' ]'
-scan CAP sudoers-modification    '(/etc/sudoers|visudo)'
-scan CAP remote-build            '(cargo[[:space:]]+build|npm[[:space:]]+run[[:space:]]+build|make[[:space:]]+(all|build)?|go[[:space:]]+build|\./configure)'
+scan CAP installer               '(^|/)(install|installer|setup|uninstall)([-_.]|$)|makefil[e]|Makefil[e]' '(\.sh|\.mjs|\.js|\.py|akefile)$'
+scan CAP package-manager         '\b(pac[m]an|y[a]y|par[u]|a[p]t-get|ap[t]|dn[f]|zyppe[r]|pip[0-9]?[[:space:]]+install|npm[[:space:]]+install|cargo[[:space:]]+install|flatpak[[:space:]]+install|brew[[:space:]]+install)\b'
+scan CAP privilege               '(^|[^A-Za-z_-])(sud[o]|pkexe[c])([^A-Za-z_-]|$)'
+scan CAP service-management      '\b(systemct[l]|systemd-ru[n])\b|\.service["'\'' ]'
+scan CAP sudoers-modification    '(/etc/sudoer[s]|visud[o])'
+scan CAP remote-build            '(cargo[[:space:]]+build|npm[[:space:]]+run[[:space:]]+build|make[[:space:]]+(all|build)?|go[[:space:]]+build|\./configur[e])'
 # secret-reference: the plugin mentions a secret env var or an inline token/key.
 # Legitimate for an API-backed widget (weather keys, a mail token), so it is a
 # capability to review, not a finding. `password =` is intentionally excluded —
 # too common as a plain field name to carry any signal.
-scan CAP secret-reference        '(ANTHROPIC_API_KEY|OPENAI_API_KEY|AWS_SECRET(_ACCESS_KEY)?|AWS_ACCESS_KEY_ID|[A-Z0-9_]*_TOKEN[[:space:]]*=|[A-Z0-9_]*_SECRET[[:space:]]*=|apiKey[[:space:]]*[:=])'
+scan CAP secret-reference        '(ANTHROPIC_API_KE[Y]|OPENAI_API_KE[Y]|AWS_SECRE[T](_ACCESS_KEY)?|AWS_ACCESS_KEY_I[D]|[A-Z0-9_]*_TOKEN[[:space:]]*=|[A-Z0-9_]*_SECRET[[:space:]]*=|apiKey[[:space:]]*[:=])'
 
 for f in "${BIN_EXEC[@]}"; do
   rel="${f#"$TARGET"/}"
@@ -232,7 +236,7 @@ BIN_EXEC=(); for f in "${SEC_BIN[@]}"; do [[ ${f#"$TARGET"} =~ $NIX_SKIP ]] || B
 # fhs-path (blocker): /usr/share (so /usr/share/omarchy: $OMARCHY_PATH is a
 # store path), /usr/lib, /opt. envfs does not cover these.
 scan NIX fhs-path \
-  '/usr/share/[A-Za-z]|/usr/lib(64)?/|(^|[^A-Za-z0-9_.~])/opt/' "$NIX_CODE"
+  '/usr/share/[A-Za-z]|/usr/lib(64)?/|(^|[^A-Za-z0-9_.~])/op[t]/' "$NIX_CODE"
 
 # fhs-bin (review): /usr/bin/<cmd> works through envfs only if <cmd> is
 # installed. /usr/bin/env is the one path NixOS guarantees.
@@ -251,8 +255,8 @@ done
 # imperative-pkg (review): Arch package managers, or Omarchy's pacman wrapper,
 # in code. On nixarchy these do not exist or refuse, so a dependency check or
 # an install hint built on them is wrong. Docs (.md, .json) are not code.
-# (pac[m]an / y[a]y: see the package-manager capability above.)
-scan NIX imperative-pkg '\b(pac[m]an|y[a]y|paru|makepkg)\b|omarchy[- ]pkg[- ](add|install)' "$NIX_CODE"
+# (Bracketed letters: see the spelling rule above FINDINGS.)
+scan NIX imperative-pkg '\b(pac[m]an|y[a]y|par[u]|makepk[g])\b|omarchy[- ]pkg[- ](add|install)' "$NIX_CODE"
 
 # etc-write: /etc on NixOS is generated from the configuration and is mostly
 # read-only links into the store; a write there fails or is lost on rebuild.
