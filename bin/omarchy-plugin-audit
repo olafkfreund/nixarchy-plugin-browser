@@ -152,7 +152,7 @@ else
   PLUGIN_ID="$TARGET"                                  # treat as marketplace id
 fi
 
-fetch_catalog || say "${YEL}note: could not fetch the marketplace catalog; continuing without verification metadata.${RST}"
+fetch_catalog || say "${YEL}note: could not fetch the marketplace catalog; continuing without verification metadata.${RST}" >&"$(( AS_JSON ? 2 : 1 ))"
 [[ -n ${REPO_URL:-} ]] && ENTRY=$(catalog_entry "$REPO_URL")
 [[ -z $ENTRY && -n ${PLUGIN_ID:-} ]] && ENTRY=$(catalog_entry "$PLUGIN_ID")
 if [[ -n $ENTRY && -z $REPO_URL ]]; then REPO_URL=$(jq -r '.repo // ""' <<<"$ENTRY"); URL_SRC=catalog; fi
