@@ -34,7 +34,7 @@ UPD_REPO="olafkfreund/nixarchy-plugin-browser"            # GitHub owner/repo th
 UPD_BRANCH="master"        # branch whose manifest.json is "the published version"
 UPD_SLUG="nixarchy-plugin-browser"            # cache lives in ~/.cache/<slug>/update-check.json
 UPD_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/nixarchy-plugin-browser/config.json"        # JSON file; "update_check": false turns the check off
-UPD_KEEP_LOADED=0   # 1 when the plugin has a keepLoaded panel (needs a shell restart)
+UPD_KEEP_LOADED=1   # BrowserState.qml is a pragma Singleton; omarchy plugin update keeps the old one (docs/manual/troubleshooting.md)
 UPD_BUILT_STAMP=""    # file install.sh writes with the version it built for, or empty
 # Runs in the update terminal after install.sh. Ask before anything that is not
 # free to redo; keep it short.
@@ -51,12 +51,19 @@ UPD_INSTALLED="$HOME/.config/omarchy/plugins/$UPD_ID"   # where omarchy plugin a
 UPD_REPO_URL="https://github.com/$UPD_REPO"
 
 # ---- versions ---------------------------------------------------------------
-# A version as a fixed-width key ("0.3.10" -> 000000000300010) so plain string
-# comparison orders versions numerically, in bash and in awk alike.
+# A version as a string key that orders numerically under plain string
+# comparison, in bash and in awk alike: each of the first three parts is its
+# digit count (two digits) then its digits, leading zeros dropped
+# ("0.3.10" -> "000130210"). Parts are capped at 99 digits.
 ver_key() {
-  local a b c
+  local a b c p out=""
   read -r a b c _ <<<"$(printf '%s' "${1:-0}" | tr -c '0-9' ' ')"
-  printf '%05d%05d%05d' "$((10#${a:-0}))" "$((10#${b:-0}))" "$((10#${c:-0}))"
+  for p in "${a:-0}" "${b:-0}" "${c:-0}"; do
+    while [[ $p == 0* ]]; do p=${p#0}; done
+    p=${p:0:99}
+    printf -v out '%s%02d%s' "$out" "${#p}" "$p"
+  done
+  printf '%s' "$out"
 }
 ver_gt() { [[ $(ver_key "$1") > $(ver_key "$2") ]]; }
 
@@ -66,7 +73,9 @@ manifest_version() { jq -r '.version // ""' "$UPD_DIR/manifest.json" 2>/dev/null
 # newest first, at most six. Sections start "## x.y.z"; bullets start "- ".
 changelog_notes() { # changelog_notes FILE INSTALLED LATEST
   awk -v inst="$(ver_key "$2")" -v lat="$(ver_key "$3")" '
-    function key(s,   n, a) { n = split(s, a, "."); return sprintf("%05d%05d%05d", a[1] + 0, a[2] + 0, a[3] + 0) }
+    function key(s,   n, a, i, d, k) { n = split(s, a, "."); k = ""
+      for (i = 1; i <= 3; i++) { d = a[i]; sub(/^0+/, "", d); d = substr(d, 1, 99); k = k sprintf("%02d", length(d)) d }
+      return k }
     /^##[ \t]+v?[0-9]+\.[0-9]+/ {
       match($0, /[0-9]+(\.[0-9]+)*/); v = key(substr($0, RSTART, RLENGTH))
       keep = (v "" > inst "" && v "" <= lat ""); next
@@ -91,7 +100,7 @@ cache_put() { # cache_put JQ_UPDATE [jq args...]
 }
 
 fetch() { # fetch URL -> stdout; fails on any problem, never hangs
-  curl -fsS --max-time 5 --max-filesize 200000 -A "$UPD_SLUG/$(manifest_version)" "$1" 2>/dev/null
+  curl -fsS --proto '=https' --tlsv1.2 --max-time 5 --max-filesize 200000 -A "$UPD_SLUG/$(manifest_version)" "$1" 2>/dev/null
 }
 
 enabled() {

@@ -68,7 +68,9 @@ gt 1.100000.0 1.99999.0
 gt 0.3.10 0.3.9
 gt 1.0.0 0.99.99
 gt 00010.0.0 9.0.0
-gt "1.$(printf '9%.0s' {1..30}).0" 99.0.0
+nines=$(printf '9%.0s' {1..30})             # a 30-digit part: past any integer width
+gt "$nines.0.0" 99.0.0
+gt "1.$nines.0" 1.99.0
 [[ $(ver_key 0.5.0) == "$(ver_key 0.5.0)" ]] || fail "ver_key 0.5.0 is not stable"
 [[ $(ver_key 1.2) == "$(ver_key 1.2.0)" ]]   || fail "ver_key 1.2 != ver_key 1.2.0"
 [[ $(ver_key 0.3.10) == 000130210 ]]         || fail "ver_key 0.3.10 is $(ver_key 0.3.10)"

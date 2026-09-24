@@ -115,6 +115,10 @@ before the code step that fixes it.
      `00010.0.0 > 9.0.0`, a 30-digit middle part `> 99.0.0`; and
      `ver_key 0.5.0 == ver_key 0.5.0`, `ver_key 1.2 == ver_key 1.2.0`,
      `ver_key 0.3.10 == 000130210`.
+     **Deviation (step 7):** "a 30-digit middle part `> 99.0.0`" is false as
+     written (`1.<30 digits>.0` has major 1). The test asserts the two cases
+     it meant: `<30 nines>.0.0 > 99.0.0` (a 30-digit major part) and
+     `1.<30 nines>.0 > 1.99.0` (a 30-digit middle part).
    - `changelog_notes` over a fixture CHANGELOG with `## 1.100000.0`
      (bullet `new`) and `## 1.99999.0` (bullet `old`), installed `1.99999.0`,
      latest `1.100000.0`, prints exactly `new`. This also proves the bash
