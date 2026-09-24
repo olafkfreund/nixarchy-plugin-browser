@@ -59,6 +59,9 @@ else BOLD=; DIM=; RED=; GRN=; YEL=; BLU=; CYN=; RST=; fi
 say()  { printf '%s\n' "$*"; }
 head2(){ printf '\n%s%s%s\n' "$BOLD" "$*" "$RST"; }
 die()  { printf '%saudit:%s %s\n' "$RED" "$RST" "$1" >&2; exit "${2:-2}"; }
+# Text from a plugin (commit subject, file names) or the catalog never reaches
+# the terminal with a control character in it: no escape sequences.
+clean(){ local s=${1//[[:cntrl:]]/ }; printf '%s' "$s"; }
 
 OMARCHY_BIN="${OMARCHY_BIN:-/run/current-system/sw/bin}"
 SELF_DIR="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)"
@@ -169,11 +172,11 @@ fi
 # --------------------------------------------------------- verification posture
 VERIFIED_COMMIT=$(jq -r '.verificationCommit // .listingValidatedCommit // ""' <<<"${ENTRY:-{}}" 2>/dev/null)
 UPSTREAM_OBSERVED=$(jq -r '.upstreamObservedCommit // ""' <<<"${ENTRY:-{}}" 2>/dev/null)
-VSTATUS=$(jq -r '.verificationSnapshotStatus // "none"' <<<"${ENTRY:-{}}" 2>/dev/null)
-VCOVER=$(jq -r '.verificationCoverage // "none"' <<<"${ENTRY:-{}}" 2>/dev/null)
-VMETHOD=$(jq -r '.verificationMethod // ""' <<<"${ENTRY:-{}}" 2>/dev/null)
-CAT_STARS=$(jq -r '.stars // ""' <<<"${ENTRY:-{}}" 2>/dev/null)
-CAT_NAME=$(jq -r '.name // ""' <<<"${ENTRY:-{}}" 2>/dev/null)
+VSTATUS=$(clean "$(jq -r '.verificationSnapshotStatus // "none"' <<<"${ENTRY:-{}}" 2>/dev/null)")
+VCOVER=$(clean "$(jq -r '.verificationCoverage // "none"' <<<"${ENTRY:-{}}" 2>/dev/null)")
+VMETHOD=$(clean "$(jq -r '.verificationMethod // ""' <<<"${ENTRY:-{}}" 2>/dev/null)")
+CAT_STARS=$(clean "$(jq -r '.stars // ""' <<<"${ENTRY:-{}}" 2>/dev/null)")
+CAT_NAME=$(clean "$(jq -r '.name // ""' <<<"${ENTRY:-{}}" 2>/dev/null)")
 
 # ------------------------------------------------------------------- staging
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/omarchy-audit.XXXXXX")"
@@ -231,7 +234,7 @@ _bound_run() {  # _bound_run <label> <watch-dir> -- <cmd...>
     sleep 0.5
   done
   wait "$pid"; local rc=$?
-  (( rc == 0 )) || die "$label failed: $(tr '\n' ' ' <"$errfile" | cut -c1-160)" 3
+  (( rc == 0 )) || die "$label failed: $(tr -c '[:print:]' ' ' <"$errfile" | cut -c1-160)" 3
   # A transfer that finishes fast can still land over the ceiling before the
   # poll loop ever samples it — check once more right after it exits.
   if [[ -d $watch_dir ]]; then
@@ -283,13 +286,13 @@ if [[ -n $LOCAL_DIR ]]; then
   copy_hardened "$LOCAL_DIR" || die "could not copy $LOCAL_DIR into the sandbox staging dir" 3
   if git -C "$LOCAL_DIR" rev-parse --git-dir >/dev/null 2>&1; then
     SCAN_COMMIT=$(git -C "$LOCAL_DIR" rev-parse HEAD 2>/dev/null || echo "")
-    SCAN_SUBJECT=$(git -C "$LOCAL_DIR" log -1 --format='%s' 2>/dev/null || echo "")
+    SCAN_SUBJECT=$(clean "$(git -C "$LOCAL_DIR" log -1 --format='%s' 2>/dev/null || echo "")")
     DEFAULT_BRANCH=$(git -C "$LOCAL_DIR" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
     META_GIT="$LOCAL_DIR"
   fi
   [[ -n $SCAN_COMMIT ]] || SCAN_COMMIT="(local files, not a git checkout)"
 else
-  clone_hardened "$REPO_URL" || die "git clone failed: $(tr '\n' ' ' <"$STAGE/clone.err" | cut -c1-160)" 3
+  clone_hardened "$REPO_URL" || die "git clone failed: $(tr -c '[:print:]' ' ' <"$STAGE/clone.err" | cut -c1-160)" 3
   DEFAULT_BRANCH=$(git -C "$CHECKOUT" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')
   DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
   if [[ -n $PIN_COMMIT ]]; then SCAN_COMMIT="$PIN_COMMIT"
@@ -315,20 +318,20 @@ else
   ' _ "$CHECKOUT" "$SCAN_COMMIT" \
     || die "could not check out $SCAN_COMMIT" 3
   SCAN_COMMIT=$(git -C "$CHECKOUT" rev-parse HEAD 2>/dev/null || echo "$SCAN_COMMIT")
-  SCAN_SUBJECT=$(git -C "$CHECKOUT" log -1 --format='%s' 2>/dev/null || echo "")
+  SCAN_SUBJECT=$(clean "$(git -C "$CHECKOUT" log -1 --format='%s' 2>/dev/null || echo "")")
   META_GIT="$CHECKOUT"
   if [[ -n $APPLY_PATCH ]]; then
     # The patch lands in this hardened clone before anything is scanned, so
     # the scan, the needs-fixes gate and the install below all see the
     # patched tree. A symlink the patch adds shows up in SYMLINKS just below.
     git -C "$CHECKOUT" apply --check -- "$APPLY_PATCH" 2>"$STAGE/apply.err" \
-      || die "patch does not apply to ${SCAN_COMMIT:0:12}: $(tr '\n' ' ' <"$STAGE/apply.err" | cut -c1-160)" 3
+      || die "patch does not apply to ${SCAN_COMMIT:0:12}: $(tr -c '[:print:]' ' ' <"$STAGE/apply.err" | cut -c1-160)" 3
     git -C "$CHECKOUT" apply -- "$APPLY_PATCH" && git -C "$CHECKOUT" add -A \
       && git -C "$CHECKOUT" -c core.hooksPath=/dev/null -c user.name=nixarchy-plugin-fix \
            -c user.email=nobody@localhost commit --quiet -m "nixarchy-local: $(basename -- "$APPLY_PATCH")" \
       || die "could not commit the patch" 3
     SCAN_COMMIT=$(git -C "$CHECKOUT" rev-parse HEAD)
-    SCAN_SUBJECT=$(git -C "$CHECKOUT" log -1 --format='%s')
+    SCAN_SUBJECT=$(clean "$(git -C "$CHECKOUT" log -1 --format='%s')")
   fi
 fi
 
@@ -376,6 +379,9 @@ else
 fi
 
 # --------------------------------------------------------------------- tally
+# Belt and braces: the scanner cleans its records, and nothing but tab and
+# newline control characters survives this pass either.
+tr -d '\000-\010\013-\037\177' <"$RAW" >"$RAW.clean" && mv -f -- "$RAW.clean" "$RAW"
 # A finished scan prints exactly one VALIDATE record and ends with the
 # completion STAT. Anything else is a forged or truncated record stream.
 [[ $(grep -c $'^VALIDATE\t' "$RAW") == 1 && $(tail -n1 "$RAW") == $'STAT\tscan\tcomplete' ]] \
@@ -556,7 +562,7 @@ esac
 if [[ -n $SYMLINKS ]]; then
   head2 "Symlinks"
   say "  ${YEL}⚠ tracked symlinks present — the shell refuses these on install:${RST}"
-  while read -r s; do [[ -n $s ]] && printf '      %s\n' "$s"; done <<<"$SYMLINKS"
+  while read -r s; do [[ -n $s ]] && printf '      %s\n' "$(clean "$s")"; done <<<"$SYMLINKS"
 fi
 
 # informational, folded
