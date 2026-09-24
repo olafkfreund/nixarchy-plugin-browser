@@ -32,6 +32,7 @@ BarWidget {
     var url = Qt.resolvedUrl(".").toString()
     return decodeURIComponent(url.replace(/^file:\/\//, "")).replace(/\/$/, "")
   }
+  // Root-owned PATH for the commands it starts; also in BrowserState.qml childEnv.
   readonly property var childEnv: ({ "PATH": "/run/wrappers/bin:/run/current-system/sw/bin:/etc/profiles/per-user/" + (Quickshell.env("USER") || "") + "/bin" })
 
   function launch() {

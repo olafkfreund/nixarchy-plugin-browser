@@ -90,7 +90,7 @@ FocusScope {
   // --------------------------------------------------------------- actions
   // Keys that act on the list act on what was typed, not on what the 80 ms
   // debounce has shown so far: typing "monitor" and pressing Enter at once
-  // used to open the top row of the unfiltered list (found in G1 on razer).
+  // used to open the top row of the unfiltered list.
   function commitFilter() {
     if (!filterDelay.running) return
     filterDelay.stop()
