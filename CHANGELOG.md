@@ -3,6 +3,10 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
+## Unreleased
+
+- A config file that exists but cannot be read turns the update check off, as "update_check": false does (#21)
+
 ## 0.5.1
 
 - The audit can no longer be fooled by a file name that forges a scan result
