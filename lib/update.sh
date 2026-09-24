@@ -104,8 +104,10 @@ fetch() { # fetch URL -> stdout; fails on any problem, never hangs
 }
 
 enabled() {
-  [[ -f $UPD_CONFIG ]] || return 0
-  [[ $(jq -r '.update_check' "$UPD_CONFIG" 2>/dev/null) != false ]]
+  [[ -e $UPD_CONFIG ]] || return 0
+  local v
+  v=$(jq -r '.update_check' "$UPD_CONFIG" 2>/dev/null) || return 1
+  [[ $v != false ]]
 }
 
 # ---- check -------------------------------------------------------------------

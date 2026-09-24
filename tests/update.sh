@@ -50,6 +50,14 @@ out=$(bash "$T/plugin/lib/update.sh" check 0.1.0)
 [[ $(jq -r .enabled <<<"$out") == false ]] || fail "off: enabled is not false: $out"
 [[ $(sha256sum <"$CACHE") == "$before" ]] || fail "off: the cache file changed"
 
+# The switch fails closed (#21): a config jq cannot read means off, not on.
+echo '{' >"$CONFIG"
+jq -n '{checked: 0, latest: "0.2.0"}' >"$CACHE"; before=$(sha256sum <"$CACHE")
+out=$(bash "$T/plugin/lib/update.sh" check 0.1.0)
+jq -e '.enabled == false and .latest == null' >/dev/null <<<"$out" \
+  || fail "malformed config: check is not off: $out"
+[[ $(sha256sum <"$CACHE") == "$before" ]] || fail "malformed config: the cache file changed"
+
 # Part 2 needs the check switched on and a cold cache.
 rm -f -- "$CONFIG" "$CACHE"
 
