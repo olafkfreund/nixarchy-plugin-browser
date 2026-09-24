@@ -248,3 +248,10 @@ without a caller that cancels. A leftover headless output is removed with
   `void Process::setRunning(bool running) { … else if (this->isRunning()) this->process->terminate(); }`.
   `QProcess::terminate()` sends SIGTERM on Unix, so C1 uses
   `auditProcess.running = false`; no `signal(15)` fallback.
+- **Step 12 (no clone left after cancel), script level.** On a throwaway
+  local merge of this branch with `origin/fix/15-audit-hardening` (4a5eba9),
+  deleted afterwards and never pushed: `bash tests/audit-cancel.sh` → `ok`.
+  It sends SIGTERM to the audit's own PID only (what
+  `QProcess::terminate()` does), then checks the exit is 143, no process
+  from the hanging `git clone` is left, and no `omarchy-audit.*` stage
+  directory remains. The in-panel Esc version stays pending for the owner.
