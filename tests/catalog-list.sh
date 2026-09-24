@@ -4,7 +4,8 @@
 # the shell panel reads. Uses a fresh fixture catalog (so nothing is fetched)
 # and asserts the fields, the star order and the community-only filter; then
 # that hostile entries cost one entry, not the list (#18), for the panel's list
-# and the terminal's catalog_lines, and the CLIs' argument and --json edges.
+# and the terminal's catalog_lines and the terminal's detail card, and the
+# CLIs' argument and --json edges.
 # Prints "ok" and exits 0, or names the first failure and exits 1.
 # tier: host
 set -uo pipefail
@@ -90,6 +91,22 @@ grep -qxF '·  c.empty  —  ?   System   ★0   c.empty' <<<"$LINES" || fail "c
 # shellcheck disable=SC2034 source=../lib/catalog.sh  # CATALOG is read by catalog_lines
 SYS=$(CATALOG="$FX/hostile.json"; source "$LIB"; catalog_lines System) || fail "catalog_lines System exited $?"
 [[ $(awk '{print $NF}' <<<"$SYS" | paste -sd' ') == "c.str5 a.low c.empty" ]] || fail "catalog_lines System" "$SYS"
+
+# --- the terminal's detail card: the real catalog_detail (#22) -------------
+detail() {  # detail ID -> the fields, one per line, as show_detail reads them
+  # shellcheck disable=SC2034 source=../lib/catalog.sh  # CATALOG is read by catalog_detail
+  (CATALOG="$FX/hostile.json"; source "$LIB"; catalog_detail "$1") | tr '\0' '\n'
+}
+mapfile -t d < <(detail c.empty)
+[[ ${#d[@]} == 15 && ${d[0]} == c.empty && ${d[1]} == '?' && ${d[3]} == System && ${d[4]} == 0 ]] \
+  || fail "detail: c.empty" "$(detail c.empty)"
+mapfile -t d < <(detail c.tagmix)
+[[ ${#d[@]} == 15 && ${d[0]} == c.tagmix && ${d[1]} == '?' && ${d[3]} == '?' && ${d[5]} == '?' \
+   && ${d[12]} == '' && ${d[14]} == '#y' ]] || fail "detail: c.tagmix" "$(detail c.tagmix)"
+mapfile -t d < <(detail a.low)
+[[ ${#d[@]} == 15 && ${d[0]} == Low && ${d[1]} == ann && ${d[4]} == 3 && ${d[11]} == true \
+   && ${d[10]} == 'omarchy plugin add https://github.com/a/low' ]] || fail "detail: a.low" "$(detail a.low)"
+[[ -z $(detail no.such.id) ]] || fail "detail: an unknown id gave output"
 
 # --- --category needs a value (checked before any tool or terminal) -----------
 for args in "--category" "--category --refresh"; do

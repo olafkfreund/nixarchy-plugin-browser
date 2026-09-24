@@ -100,19 +100,23 @@ does not move the baseline.
      (CATALOG="$FX/hostile.json"; source "$LIB"; catalog_detail "$1") | tr '\0' '\n'
    }
    mapfile -t d < <(detail c.empty)
-   [[ ${d[0]} == c.empty && ${d[1]} == '?' && ${d[3]} == System && ${d[4]} == 0 ]] \
+   [[ ${#d[@]} == 15 && ${d[0]} == c.empty && ${d[1]} == '?' && ${d[3]} == System && ${d[4]} == 0 ]] \
      || fail "detail: c.empty" "$(detail c.empty)"
    mapfile -t d < <(detail c.tagmix)
-   [[ ${d[0]} == c.tagmix && ${d[1]} == '?' && ${d[3]} == '?' && ${d[5]} == '?' \
+   [[ ${#d[@]} == 15 && ${d[0]} == c.tagmix && ${d[1]} == '?' && ${d[3]} == '?' && ${d[5]} == '?' \
       && ${d[12]} == '' && ${d[14]} == '#y' ]] || fail "detail: c.tagmix" "$(detail c.tagmix)"
    mapfile -t d < <(detail a.low)
-   [[ ${d[0]} == Low && ${d[1]} == ann && ${d[4]} == 3 && ${d[11]} == true \
+   [[ ${#d[@]} == 15 && ${d[0]} == Low && ${d[1]} == ann && ${d[4]} == 3 && ${d[11]} == true \
       && ${d[10]} == 'omarchy plugin add https://github.com/a/low' ]] || fail "detail: a.low" "$(detail a.low)"
-   [[ ${#d[@]} == 15 ]] || fail "detail: expected 15 fields, got ${#d[@]}"
    [[ -z $(detail no.such.id) ]] || fail "detail: an unknown id gave output"
    ```
 
    Also add "and the terminal's detail card" to the header comment.
+
+   *Deviation (implementation):* the field count leads each `[[ ]]` (it
+   short-circuits), not a separate check after `a.low`. Without it, `set -u`
+   aborts on `d[0]: unbound variable` when `catalog_detail` gives nothing,
+   and the test exits without naming the failure.
    → verify **red**: `bash tests/catalog-list.sh` fails at `detail: c.empty`
    (`catalog_detail: command not found`).
 
