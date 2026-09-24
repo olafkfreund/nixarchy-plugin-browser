@@ -241,3 +241,18 @@ Run before and after each phase; all must pass:
   since the update alert only moves forward.
 - Filed issues are closed as "not planned" if their step is reverted.
 - Phase B: revert per step; none changes output, so no release is needed.
+
+## Deviations
+
+- **Step 6, lead decision.** #18 (PR #23) rewrites `BarWidget.qml:163` and the
+  "Kind:" line of `docs/update-alerts.md` "In this plugin". Both are left for
+  phase B, so the two PRs merge cleanly. Until then
+  `grep -n "asks first" BarWidget.qml` and the "In this plugin" grep for
+  "terminal" each still match that one line. New phase B step 15: after #18
+  merges, drop "(asks first)" from the `BarWidget.qml` update line and make the
+  Kind line "bar widget (`BarWidget.qml`) plus a full-screen panel
+  (`Menu.qml`)", keeping what #18 added.
+- **Step 4, verification.** `./install.sh` was not run against the real
+  `$HOME`. A copy with `REPO` and `BIN_DIR` pointed at the worktree and a
+  scratch directory linked all three tools; the same copy with `TOOL_PATH` at
+  an empty directory failed naming git, jq, curl, file and gum.

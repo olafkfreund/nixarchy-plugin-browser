@@ -137,6 +137,7 @@ Environment for tests: `OMARCHY_PLUGIN_UPDATE_RAW` (an `https://` base URL),
 - Kind: bar-only widget (`BarWidget.qml`) that opens a terminal; the update helper is `lib/update.sh` itself (the CLI tools do not wrap it). The browser panel is keepLoaded (`BrowserState.qml` is a singleton `omarchy plugin update` does not reload), so `UPD_KEEP_LOADED=1` and the update terminal offers the shell restart it needs.
 - Published branch: `master` (the raw URL uses it; do not assume `main`).
 - Version places: `manifest.json`, `CHANGELOG.md`. The CLI tools carry no version of their own.
-- Cache: `~/.cache/omarchy-plugin-browser/update-check.json`. Opt-out: `"update_check": false` in `~/.config/omarchy-plugin-browser/config.json` (create it), or in the widget's `shell.json` entry.
+- Cache: `~/.cache/nixarchy-plugin-browser/update-check.json`. Opt-out: `"update_check": false` in `~/.config/nixarchy-plugin-browser/config.json` (create it), or in the widget's `shell.json` entry.
 - The widget checks on load and every six hours, shows a dot, and the next click opens the popup (Update…, Later, Browse plugins). The popup text is built with `Color.popups.*`.
-- No mismatch case: `install.sh` symlinks the CLI tools into `~/.local/bin`, so the plugin folder is the only copy; the update terminal still reruns `install.sh` because it asks and is idempotent.
+- No mismatch case: `install.sh` symlinks the CLI tools into `~/.local/bin`, so the plugin folder is the only copy; Update still reruns `install.sh`, which relinks without asking and is idempotent.
+- A Nix install (no `.git`) shows "update with nix flake update" in place of the Update button (`BarWidget.qml`, `nixInstall`).

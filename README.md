@@ -111,7 +111,8 @@ About once every six hours the bar button fetches this repository's
 `manifest.json` (one small HTTPS request, no personal data). If a newer version
 is out, a dot appears on the button and the next click shows what changed, from
 `CHANGELOG.md`. *Update…* opens a terminal that runs `omarchy plugin update`
-(it shows the diff and asks), then `install.sh` (asks again). *Later* hides
+(it shows the diff and asks), then `install.sh`, which relinks the commands
+without asking. *Later* hides
 that version. Set `"update_check": false` in
 `~/.config/nixarchy-plugin-browser/config.json` to turn the check off. By hand:
 
@@ -162,7 +163,7 @@ marketplace as plain text. The agent session and its fix flow run in a
 floating terminal, because they are interactive.
 
 **Preview images.** Opening a plugin shows its screenshot from the
-marketplace, above the description, for the 3,379 plugins that have one.
+marketplace, above the description, for the plugins that have one.
 Only the plugin you open is fetched, so plugins.omarchy.org learns which
 plugins you look at: the same site the catalog comes from. The shell never
 downloads or decodes anything straight from the network. `lib/catalog.sh
@@ -271,7 +272,7 @@ You are asked to confirm before it starts.
 nothing. Run `nixarchy-plugin-fix <id>` again. The saved patch is in the
 folder above if you want to reuse it.
 
-## How the audit works — the corrected step list
+## How the audit works
 
 The pseudocode this repo started from had the right instinct (sandbox, scan,
 never auto-install) but several wrong facts. Here is the flow as actually built,
@@ -304,7 +305,8 @@ against the real Omarchy 4.x plugin system:
    adds: reads of credential paths, and dynamic code loading
    (`eval`, the `Function` constructor, QML built from a string, a component
    fetched from a remote URL). Capabilities (installer, package-manager,
-   privilege, service-management, sudoers-modification, remote-build, a bundled
+   privilege, service-management, sudoers-modification, remote-build,
+   secret-reference, a bundled
    ELF/PE/Mach-O binary) are surfaced for review but are not, by themselves, a
    block.
 6. **Run the shell's real validator** (`omarchy-plugin-validate`) inside the
@@ -347,6 +349,7 @@ BrowserView.qml · ShortcutSheet.qml · BrowserState.qml · qmldir   the panel's
 Model.js                      the panel's pure logic (tests/model-check.mjs)
 hypr/plugin-browser-binds.lua the Super+Alt+U binding
 lib/catalog.sh                the bounded catalog fetch, and `list` for the panel
+lib/update.sh                 the update check, shared with the other Omarchy.Fans plugins
 bin/omarchy-plugin-browser    marketplace TUI
 bin/omarchy-plugin-audit      sandboxed auditor / installer
 bin/nixarchy-plugin-fix       NixOS check → default agent (explain / fix a copy)
@@ -354,6 +357,11 @@ lib/omarchy-plugin-scan.sh    the in-sandbox scanner
 install.sh · uninstall.sh     symlink the tools; optionally register the widget
 tests/scan-nix.sh             self-check for the NixOS scanner rules
 tests/catalog-list.sh         self-check for catalog.sh list
+tests/preview.sh              self-check for catalog.sh's preview checks
+tests/model-check.mjs         self-check for Model.js (run by nix flake check)
+docs/                         the manual and the GitHub Pages site
+CHANGELOG.md                  release notes (read by the update alert)
+preview.png                   the marketplace listing image (not shipped by the flake)
 flake.nix · flake.lock        Nix packages (plugin, cli), keybinding module, checks
 ```
 

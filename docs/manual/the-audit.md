@@ -32,7 +32,7 @@ Opening a plugin audits it. `a` runs the audit again.
 | Verdict | Meaning |
 |---|---|
 | **passed** | none of the checks matched |
-| **review required** | it has capabilities worth reading about: installing packages, managing services, privilege, remote builds, a bundled binary |
+| **review required** | it has capabilities worth reading about: installing packages, managing services, privilege, remote builds, mentions of secrets or tokens, a bundled binary |
 | **needs fixes** | a finding: piping a download to a shell, unpinned remote code, dangerous sudoers lines, reading credential paths, building code from strings |
 
 The finding names match the marketplace's own, so the two can be compared.

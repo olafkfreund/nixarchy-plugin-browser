@@ -10,8 +10,8 @@ Only when you use the panel, and only from **plugins.omarchy.org**:
 
 - **the catalog** (about 8 MB), when the panel opens, cached for an hour in
   `~/.cache/omarchy-plugin-audit/`;
-- **one preview image,** for the plugin you open, if it has one (3,379 of
-  them do), cached in `~/.cache/omarchy-plugin-audit/previews/`, up to
+- **one preview image,** for the plugin you open, if it has one,
+  cached in `~/.cache/omarchy-plugin-audit/previews/`, up to
   50 MiB.
 
 So plugins.omarchy.org learns which plugins you look at: the same site the

@@ -23,6 +23,10 @@ is still there as **Add Plugin from URL**.
   o.bind("SUPER + ALT + U", "Plugin browser", "nixarchy-plugin io.github.olafkfreund.nixarchy-plugin-browser")
   ```
 
+  The binds file this plugin ships uses
+  `omarchy-shell shell toggle <id> '{}'` (`hypr/plugin-browser-binds.lua:14`).
+  Both open the same panel.
+
 - **After the update that brings it in, log out and back in once.** The
   menu is read from the Omarchy tree your session started with, so until you
   do, Add Plugin still opens the old prompt.

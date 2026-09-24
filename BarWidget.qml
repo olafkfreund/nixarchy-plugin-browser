@@ -161,7 +161,7 @@ BarWidget {
               ? (root.nixInstall
                  ? "Installed through Nix: update with nix flake update nixarchy-plugin-browser and rebuild."
                  : "Update opens a terminal: omarchy plugin update shows the changes and asks, then install.sh relinks the commands (asks first), then offers a shell restart.")
-              : "Run install.sh once so the linked commands match. It asks before changing anything."
+              : "Run install.sh once so the linked commands match. It only relinks this plugin's commands."
         color: Color.popups.text; opacity: 0.6; font.family: Style.font.family; font.pixelSize: Style.font.caption
       }
       Item { width: 1; height: Style.space(2) }
