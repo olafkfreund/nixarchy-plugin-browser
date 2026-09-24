@@ -139,6 +139,35 @@
               done
               test $rc = 0 && touch $out
             '';
+
+          # The Home Manager module, evaluated against a stub of home.file (no
+          # home-manager input): default chord, a custom chord, null, and a
+          # value that would break out of the Lua string is refused.
+          hm-module =
+            let
+              lib = nixpkgs.lib;
+              stub = {
+                options.home.file = lib.mkOption {
+                  type = lib.types.attrsOf (lib.types.submodule {
+                    options.text = lib.mkOption { type = lib.types.str; };
+                  });
+                  default = { };
+                };
+              };
+              homeFiles = keybinding: (lib.evalModules {
+                modules = [ stub self.homeManagerModules.default ]
+                  ++ lib.optional (keybinding != "default") { programs.nixarchy-plugin-browser.keybinding = keybinding; };
+              }).config.home.file;
+              bind = keybinding: (homeFiles keybinding).".config/hypr/plugin-browser-binds.lua".text;
+              results = {
+                default = lib.hasInfix ''o.bind("SUPER + ALT + U"'' (bind "default");
+                custom = lib.hasInfix ''o.bind("SUPER + SHIFT + P"'' (bind "SUPER + SHIFT + P");
+                null = homeFiles null == { };
+                injection = (builtins.tryEval (builtins.deepSeq (bind "U\"); os.execute(\"") true)) == { success = false; value = false; };
+              };
+            in
+            assert lib.assertMsg (lib.all lib.id (lib.attrValues results)) "hm-module: ${builtins.toJSON results}";
+            pkgs.writeText "nixarchy-plugin-browser-hm-module" (builtins.toJSON results);
         });
     };
 }
