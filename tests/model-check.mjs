@@ -9,7 +9,7 @@ import assert from "node:assert/strict"
 
 const src = readFileSync(new URL("../Model.js", import.meta.url), "utf8").replace(/^\.pragma library\s*$/m, "")
 const M = {}
-vm.runInNewContext(src + "\nObject.assign(M, {isSafeId, parsePayload, parseRows, filterRows, verdictLabel, nixLabel, parseReport, lastLines, clean, openArgv, agentArgv, auditArgv, installArgv, copyArgv, SHORTCUTS, reportLines, previewArgv, isPreviewPath, cardExtent})", { M })
+vm.runInNewContext(src + "\nObject.assign(M, {isSafeId, parsePayload, parseRows, filterRows, verdictLabel, nixLabel, parseReport, lastLines, clean, openArgv, agentArgv, auditArgv, installArgv, copyArgv, SHORTCUTS, reportLines, previewArgv, isPreviewPath, cardExtent, installCommandFor})", { M })
 
 // Values made inside the vm context have that realm's prototypes; compare as data.
 const j = (v) => JSON.parse(JSON.stringify(v))
@@ -80,6 +80,21 @@ assert.equal(M.openArgv("https://evil.example/x"), null)
 assert.equal(M.openArgv("https://github.com/a/b;rm"), null)
 assert.ok(M.openArgv("https://github.com/crmne/omarchy-hyprmoncfg"))
 assert.ok(M.SHORTCUTS.some(s => s.keys === "?"))
+
+// install command: built from a checked repo, never copied from the catalog (#17)
+assert.equal(M.installCommandFor({ installAvailable: true, repo: "https://github.com/a/b/" }), "omarchy plugin add https://github.com/a/b")
+for (const bad of [{ installAvailable: false, repo: "https://github.com/a/b" },
+                   { installAvailable: true, repo: "https://evil.example/a/b" },
+                   { installAvailable: true, repo: "https://github.com/a/b;rm" },
+                   { installAvailable: true, repo: "https://github.com/a/b\n" },
+                   { installAvailable: true, repo: "https://github.com/a/b\nrm -rf ~" }, null])
+  assert.equal(M.installCommandFor(bad), "", `no command for ${JSON.stringify(bad)}`)
+for (const bad of ["a\nb", "a\rb", "a\u2028b", "a\u2029b", ""]) assert.equal(M.copyArgv(bad), null, `copy refused: ${JSON.stringify(bad)}`)
+assert.equal(M.clean("a\u202Eb\u200Bc\u2066d\uFEFF"), "abcd", "bidi and zero-width characters removed")
+assert.equal(M.clean("a\u2028b"), "a b", "line separator becomes a space")
+assert.equal(M.clean("a\nb\tc"), "a\nb\tc", "newline and tab kept")
+assert.ok(!("installCommand" in M.parseRows(JSON.stringify([{ id: "a.b", installCommand: "curl x | sh" }]))[0]), "catalog installCommand is not read")
+assert.equal(M.SHORTCUTS.find(s => s.keys === "c").what, "copy the install command shown in the pane")
 
 // card size
 assert.equal(M.cardExtent(1280, 0.6, 560, 960, 10), 768)  // share wins

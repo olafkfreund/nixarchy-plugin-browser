@@ -31,7 +31,7 @@ var SHORTCUTS = [
   { group: "Details", keys: "e", what: "explain with your default agent (terminal)" },
   { group: "Details", keys: "f", what: "fix a copy with your default agent (terminal)" },
   { group: "Details", keys: "i", what: "install, disabled (asks y/n)" },
-  { group: "Details", keys: "c", what: "copy the install command" },
+  { group: "Details", keys: "c", what: "copy the install command shown in the pane" },
   { group: "Details", keys: "o", what: "open the repository" },
   { group: "Details", keys: "j k", what: "scroll the report" },
   { group: "Details", keys: "Esc  ←", what: "back to the list" },
@@ -41,6 +41,8 @@ var SHORTCUTS = [
 
 var ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 // The same allowlist lib/catalog.sh enforces before it fetches anything.
+// A GitHub repository URL and nothing else: what `o` opens and `c` copies.
+var REPO_RE = /^https:\/\/github\.com\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\/?$/
 var PREVIEW_RE = /^assets\/img\/plugins\/[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(webp|png)$/
 
 function isPreviewPath(p) {
@@ -55,7 +57,9 @@ function isSafeId(id) {
 // capped. Shown with Text.PlainText as well; this only keeps layouts sane.
 function clean(value, max) {
   var s = value === undefined || value === null ? "" : String(value)
-  s = s.replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, " ")
+  s = s.replace(/[\u0000-\u0008\u000B-\u001F\u007F\u2028\u2029]/g, " ")
+  // Bidi overrides and zero-width characters: text that reads one way and is another.
+  s = s.replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g, "")
   return s.length > (max || 400) ? s.slice(0, (max || 400) - 1) + "…" : s
 }
 
@@ -87,7 +91,7 @@ function parseRows(text) {
       category: clean(r.category, 40), stars: Number(r.stars) || 0, tags: tags,
       badge: (r.badge === "verified" || r.badge === "snapshot") ? r.badge : "unverified",
       description: clean(r.description, 600), repo: clean(r.repo, 200),
-      installCommand: clean(r.installCommand, 300), installAvailable: r.installAvailable === true,
+      installAvailable: r.installAvailable === true,
       preview: isPreviewPath(r.preview) ? r.preview : ""
     }
     row.hay = [row.name, row.id, row.author, row.category, tags.join(" ")].join("\n").toLowerCase()
@@ -165,12 +169,20 @@ function agentArgv(root, id, mode) {
 function previewArgv(root, relpath) {
   return isPreviewPath(relpath) ? [BASH, root + "/lib/catalog.sh", "preview", relpath] : null
 }
+// One line or nothing: a pasted newline would run whatever follows it.
 function copyArgv(text) {
-  return [SW + "wl-copy", "--", String(text)]
+  var s = text === undefined || text === null ? "" : String(text)
+  return s === "" || /[\r\n\u2028\u2029]/.test(s) ? null : [SW + "wl-copy", "--", s]
+}
+// What `c` copies, built here from a checked repo URL. The catalog's own
+// install command string is never read, so a marketplace entry cannot put
+// `curl … | sh` on the clipboard.
+function installCommandFor(row) {
+  if (!row || row.installAvailable !== true || !REPO_RE.test(row.repo)) return ""
+  return "omarchy plugin add " + row.repo.replace(/\/$/, "")
 }
 function openArgv(repo) {
-  return /^https:\/\/github\.com\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\/?$/.test(repo)
-    ? [SW + "omarchy", "launch", "browser", repo] : null
+  return REPO_RE.test(repo) ? [SW + "omarchy", "launch", "browser", repo] : null
 }
 function toggleArgv(id) {
   return [SW + "omarchy-shell", "shell", "toggle", id, "{}"]

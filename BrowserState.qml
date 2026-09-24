@@ -183,8 +183,9 @@ Singleton {
   }
 
   function copy(text) {
-    if (String(text || "") === "") return false
-    Quickshell.execDetached({ command: Model.copyArgv(text), environment: root.childEnv })
+    var argv = Model.copyArgv(text)
+    if (!argv) return false
+    Quickshell.execDetached({ command: argv, environment: root.childEnv })
     return true
   }
 

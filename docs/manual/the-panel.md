@@ -41,7 +41,7 @@ below when the audit is done, usually in a few seconds. See
 | Where | Keys |
 |---|---|
 | List | type to search · `↑` `↓` or `Ctrl+K` `Ctrl+J` to move · `Enter` for details · `Ctrl+R` to refresh the catalog · `Esc` to clear the search, then close |
-| Details | `a` audit again · `e` explain / `f` fix with your agent · `i` install, disabled · `c` copy the install command · `o` open the repository · `j` `k` scroll · `Esc` back |
+| Details | `a` audit again · `e` explain / `f` fix with your agent · `i` install, disabled · `c` copy the install command shown in the pane · `o` open the repository · `j` `k` scroll · `Esc` back |
 | Anywhere | `?` all keys |
 
 `e`, `f` and `o` open a window of their own (a terminal, or your browser),

@@ -38,4 +38,6 @@ omarchy-plugin-audit https://github.com/acme/omarchy-weather.git --install
 ```
 
 `c` in the panel copies a marketplace plugin's install command, if you
-prefer to run it yourself.
+prefer to run it yourself. The details pane shows the exact line first
+(`c copies:  omarchy plugin add https://github.com/…`); it is built from the
+plugin's GitHub URL, never taken from the catalog as text.

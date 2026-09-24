@@ -26,6 +26,7 @@ FocusScope {
   property var selected: null           // the row open in details
   property bool helpOpen: false
   property bool confirmOpen: false
+  property string copiedFor: ""         // the id whose command `c` last copied
 
   readonly property var visibleRows: Model.filterRows(BrowserState.rows, appliedQuery)
   readonly property var cursorRow: cursor >= 0 && cursor < visibleRows.length ? visibleRows[cursor] : null
@@ -66,8 +67,7 @@ FocusScope {
       var row = BrowserState.rowFor(p.id)
       // The catalog may still be loading: open with what we know about it.
       root.openDetails(row || { id: p.id, name: p.id, author: "", category: "", stars: 0, tags: [],
-                                badge: "unverified", description: "", repo: "", installCommand: "",
-                                installAvailable: false })
+                                badge: "unverified", description: "", repo: "", installAvailable: false })
     }
   }
 
@@ -92,6 +92,7 @@ FocusScope {
     root.selected = row
     root.mode = "detail"
     root.confirmOpen = false
+    root.copiedFor = ""
     report.contentY = 0
     if (!(BrowserState.reportFor === row.id && BrowserState.report)) BrowserState.audit(row.id)
     BrowserState.preview(row)
@@ -270,7 +271,7 @@ FocusScope {
           case Qt.Key_E: if (BrowserState.agent(id, "explain")) root.closeRequested(); break
           case Qt.Key_F: if (BrowserState.agent(id, "fix")) root.closeRequested(); break
           case Qt.Key_I: if (!BrowserState.installing) root.confirmOpen = true; break
-          case Qt.Key_C: BrowserState.copy(root.selected.installCommand); break
+          case Qt.Key_C: if (BrowserState.copy(Model.installCommandFor(root.selected))) root.copiedFor = id; break
           case Qt.Key_O: if (BrowserState.openRepo(root.selected.repo)) root.closeRequested(); break
           case Qt.Key_J: case Qt.Key_Down: root.scrollReport(1); break
           case Qt.Key_K: case Qt.Key_Up: root.scrollReport(-1); break
@@ -351,6 +352,22 @@ FocusScope {
             elide: Text.ElideRight
             text: root.selected && root.selected.repo ? root.selected.repo : ""
             color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
+          }
+          // Exactly what `c` puts on the clipboard, so it is read before it is pasted.
+          Text {
+            readonly property string cmd: Model.installCommandFor(root.selected)
+            readonly property bool copied: cmd !== "" && root.selected !== null && root.copiedFor === root.selected.id
+            width: parent.width
+            visible: root.selected !== null
+            textFormat: Text.PlainText
+            wrapMode: Text.WrapAnywhere
+            text: cmd !== "" ? (copied ? "Copied:  " : "c copies:  ") + cmd
+                  : root.selected && root.selected.installAvailable !== true
+                    ? "Nothing to copy: the catalog marks this plugin as not installable"
+                    : "Nothing to copy: its repository is not a GitHub URL"
+            color: copied ? Color.accent : root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.subtitle
           }

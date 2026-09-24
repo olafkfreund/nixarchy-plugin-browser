@@ -216,3 +216,18 @@ then `omarchy-restart-shell` (the `BrowserState` singleton survives a plain
 update). Reverting #17 does not need #15 reverted: #15's trap is harmless
 without a caller that cancels. A leftover headless output is removed with
 `hyprctl output remove PBTEST`.
+
+## Deviations
+
+- **No runtime checks on the live desktop (lead decision, 2026-09-24).**
+  A previous run repointed the installed plugin, restarted the shell,
+  crashed it and opened a panel over the owner's video. So the implementer
+  does not repoint the installed plugin symlink, restart the shell, create
+  headless outputs or take screenshots. Steps 11, 13 and 14 (and step 12's
+  live part) are **pending for the owner** and are listed with exact steps
+  in the PR checklist. Step 12's "no `git clone` left" check runs instead
+  with the audit script alone, from a shell, on a throwaway local merge of
+  #15's branch (never committed or pushed). Step 6 is answered from
+  Quickshell's source rather than a live `Process` (see Step notes).
+- **Commit 1 message** cites the plan step:
+  `fix(panel): c copies a command built from the checked repo (plan steps 1-3, #17)`.
