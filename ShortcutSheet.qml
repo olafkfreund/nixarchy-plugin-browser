@@ -2,8 +2,9 @@ import QtQuick
 import qs.Commons
 import "Model.js" as Model
 
-// The `?` overlay: every key the view answers, from Model.SHORTCUTS, the one
-// list the footer hints and this sheet share. Esc, ? or q closes it.
+// The `?` overlay: the keys in Model.SHORTCUTS. The view matches keys itself
+// (BrowserView.qml) and the footer is its own string, so keep all three in
+// step. Esc, ? or q closes it.
 Rectangle {
   id: root
 

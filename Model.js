@@ -20,10 +20,12 @@ var Glyph = {
   plugin: String.fromCodePoint(0xF0431)
 }
 
-// One list of keys, shown by the shortcut sheet and matched by the view.
+// The keys the shortcut sheet lists. The view matches keys itself
+// (BrowserView.qml) and the footer is its own string, so keep all three in step.
 var SHORTCUTS = [
   { group: "List", keys: "type", what: "search name, author, tag, category" },
   { group: "List", keys: "↑ ↓  Ctrl+K Ctrl+J", what: "move" },
+  { group: "List", keys: "PgUp PgDn", what: "move ten" },
   { group: "List", keys: "Enter", what: "details and audit" },
   { group: "List", keys: "Ctrl+R", what: "refresh the catalog" },
   { group: "List", keys: "Esc", what: "clear the search, then close" },
@@ -34,8 +36,8 @@ var SHORTCUTS = [
   { group: "Details", keys: "c", what: "copy the install command shown in the pane" },
   { group: "Details", keys: "o", what: "open the repository" },
   { group: "Details", keys: "j k", what: "scroll the report" },
-  { group: "Details", keys: "Esc  ←", what: "back to the list (stops a running audit)" },
-  { group: "Anywhere", keys: "?", what: "this sheet" },
+  { group: "Details", keys: "Esc  ←  Backspace", what: "back to the list (stops a running audit)" },
+  { group: "Anywhere", keys: "?", what: "this sheet (Esc, ? or q closes it)" },
   { group: "Anywhere", keys: "Super+Alt+U", what: "open or close the browser" }
 ]
 

@@ -62,7 +62,9 @@ const odd = j(M.reportLines({ outcome: "passed", findings: [null, { id: "x", at:
 assert.equal(odd.filter(l => l.text.startsWith("● ")).length, 1, "one finding line")
 assert.ok(!odd.some(l => l.text.startsWith("Capabilities")), "a null capability is not counted")
 assert.doesNotThrow(() => M.reportLines({ outcome: "passed", nixosCompatibility: "oops" }))
-assert.equal(M.SHORTCUTS.find(s => s.keys === "Esc  ←").what, "back to the list (stops a running audit)")
+assert.equal(M.SHORTCUTS.find(s => s.keys === "Esc  ←  Backspace").what, "back to the list (stops a running audit)")
+assert.ok(M.SHORTCUTS.some(s => s.keys === "PgUp PgDn"), "the sheet lists PgUp PgDn")
+assert.match(M.SHORTCUTS.find(s => s.keys === "?").what, /\bq\b/, "the sheet says q closes it")
 
 // previews: same allowlist as catalog.sh
 const good = "assets/img/plugins/5-crmne-omarchy-hyprmoncfg-card.webp"
