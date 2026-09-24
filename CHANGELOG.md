@@ -14,6 +14,10 @@ when an update is available. Keep one short line per bullet.
 - Invalid plugin ids and malformed catalog commits are refused before use
 - The audit passes its own plugin honestly: no findings from its own patterns
 - Cancelling an audit also stops its clone
+- One bad marketplace entry no longer empties the plugin list
+- The update terminal now offers the shell restart the panel needs
+- The update check is HTTPS-only
+- The terminal browser copies an install command built from the plugin's GitHub repo
 
 ## 0.5.0
 
