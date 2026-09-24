@@ -195,6 +195,13 @@ CLONE_PROTO=https; [[ $URL_SRC == typed ]] && CLONE_PROTO=https:ssh:file
 # --------------------------------------------------------- verification posture
 VERIFIED_COMMIT=$(jq -r '.verificationCommit // .listingValidatedCommit // ""' <<<"${ENTRY:-{}}" 2>/dev/null)
 UPSTREAM_OBSERVED=$(jq -r '.upstreamObservedCommit // ""' <<<"${ENTRY:-{}}" 2>/dev/null)
+# Only a full sha is a commit; anything else (HEAD~1, a branch, an option) is
+# dropped before git ever sees it.
+if [[ -n $VERIFIED_COMMIT && ! $VERIFIED_COMMIT =~ ^[0-9a-f]{40}$ ]]; then
+  VERIFIED_COMMIT=""
+  printf '%snote: the catalog'\''s verification commit is malformed; treating this plugin as unverified%s\n' "$YEL" "$RST" >&2
+fi
+[[ $UPSTREAM_OBSERVED =~ ^[0-9a-f]{40}$ ]] || UPSTREAM_OBSERVED=""
 VSTATUS=$(clean "$(jq -r '.verificationSnapshotStatus // "none"' <<<"${ENTRY:-{}}" 2>/dev/null)")
 VCOVER=$(clean "$(jq -r '.verificationCoverage // "none"' <<<"${ENTRY:-{}}" 2>/dev/null)")
 VMETHOD=$(clean "$(jq -r '.verificationMethod // ""' <<<"${ENTRY:-{}}" 2>/dev/null)")
@@ -362,6 +369,11 @@ fi
 # (needed so --install can re-point origin and verify the installed HEAD).
 [[ -z ${PLUGIN_ID:-} && -f "$CHECKOUT/manifest.json" ]] && \
   PLUGIN_ID=$(jq -r '.id // ""' "$CHECKOUT/manifest.json" 2>/dev/null)
+# The id becomes a path under ~/.config/omarchy/plugins and a command argument:
+# the shell's own rule, and no "..". A plain audit may go without one.
+id_ok() { [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $1 != *..* ]]; }
+if [[ -n $PLUGIN_ID ]]; then id_ok "$PLUGIN_ID" || die "invalid plugin id: $(clean "$PLUGIN_ID")" 2
+elif (( DO_INSTALL )); then die "invalid plugin id: the manifest has none" 2; fi
 
 # commits in B not in A, when both are resolvable in META_GIT
 behind_count() { [[ -n $META_GIT ]] && git -C "$META_GIT" rev-list --count "$1..$2" 2>/dev/null || echo "?"; }

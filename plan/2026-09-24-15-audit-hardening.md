@@ -355,3 +355,8 @@ installed plugin is unaffected by a rollback; the audit only reads it.
   `NR:line`, and `grep -n` runs on that. Same line numbers, but the detector
   regexes keep their `^` anchors (e.g. the installer rule's `(^|/)`), which an
   `NR:` prefix would break.
+- **Step 7 (item 7).** An empty id with `--install` exits 2 ("invalid plugin
+  id: the manifest has none"), the other half of "an empty id is allowed for a
+  plain audit". The malformed-commit note goes to stderr, so `--json` stdout
+  stays one JSON document; a malformed `upstreamObservedCommit` is dropped
+  without a note (it is not a verification claim).

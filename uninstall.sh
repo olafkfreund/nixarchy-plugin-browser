@@ -10,6 +10,10 @@ for tool in omarchy-plugin-audit omarchy-plugin-browser nixarchy-plugin-fix; do
 done
 
 id=$(jq -r '.id' "$REPO/manifest.json" 2>/dev/null || echo "")
+# Same rule as the audit: the id is a path and a command argument.
+if [[ -n $id ]] && ! [[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && $id != *..* ]]; then
+  echo "  skipping widget removal: invalid id"; id=""
+fi
 if [[ -n $id && -d "$HOME/.config/omarchy/plugins/$id" ]] && command -v omarchy >/dev/null; then
   echo "  removing bar widget '$id'…"
   omarchy plugin remove "$id" --yes || true
