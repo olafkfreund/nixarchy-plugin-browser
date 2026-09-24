@@ -23,6 +23,9 @@ when an update is available. Keep one short line per bullet.
 - c copies "omarchy plugin add <repo>", built from the checked GitHub URL and shown in the pane first (#17)
 - Detail keys act only without Ctrl, Alt, Super or Shift, so Ctrl+F no longer starts the fix agent
 - Esc or closing the panel stops the running audit; an audit gives up after 5 minutes (needs #15)
+- e, f and o close the panel, so the terminal or browser they open gets the keyboard
+- Both confirms before an agent runs or a workspace is deleted now default to No
+- Nix: `nix run …#cli` works, and `homeModules.default` is exported
 
 ## 0.5.0
 

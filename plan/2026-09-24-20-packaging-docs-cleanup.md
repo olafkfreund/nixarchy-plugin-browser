@@ -256,3 +256,11 @@ Run before and after each phase; all must pass:
   `$HOME`. A copy with `REPO` and `BIN_DIR` pointed at the worktree and a
   scratch directory linked all three tools; the same copy with `TOOL_PATH` at
   an empty directory failed naming git, jq, curl, file and gum.
+- **Step 8, lead decision.** `OmarchyFans/omarchy-fans-help` exists (public,
+  issues on), but the issue is not filed yet: its text is drafted in the
+  phase A PR body under "Upstream issue (to file after merge)" for the owner
+  to file, and to link from #20 then.
+- **Step 9, lead decision.** `manifest.json` is not bumped here: #15 (PR #27)
+  and #16 (PR #25) already set 0.5.1. This PR adds the `## 0.5.1` CHANGELOG
+  section only; the sections merge when the PRs rebase. The 0.5.1 release is
+  whichever of these PRs merges last with the bump in place.
