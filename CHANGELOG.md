@@ -24,6 +24,7 @@ when an update is available. Keep one short line per bullet.
 - The update check is HTTPS-only
 - The terminal browser copies an install command built from the plugin's GitHub repo
 - The panel is a share of your screen and uses your theme's font sizes, so it fits laptops and 4K alike (#16)
+- Body text matches the other nixarchy menus (Style.font.title), the same size as the search field; the ? sheet wraps long descriptions inside the card and scrolls when it is taller than the card (#26)
 - Text is drawn at its real size, no longer scaled up, so it is as sharp as the bar
 - c copies "omarchy plugin add <repo>", built from the checked GitHub URL and shown in the pane first (#17)
 - Detail keys act only without Ctrl, Alt, Super or Shift, so Ctrl+F no longer starts the fix agent
