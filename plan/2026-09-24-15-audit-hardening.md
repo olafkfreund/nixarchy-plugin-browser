@@ -350,3 +350,8 @@ installed plugin is unaffected by a rollback; the audit only reads it.
   still before the scan. The test's `git rm --cached` case commits the removal:
   uncommitted, HEAD and the tree still hold the same file, so the install is
   exactly what was scanned and there is nothing to refuse.
+- **Step 6 (item 6).** `code_lines` prints the file with comment lines
+  emptied (and a block's closing line cut to the code after `*/`) instead of
+  `NR:line`, and `grep -n` runs on that. Same line numbers, but the detector
+  regexes keep their `^` anchors (e.g. the installer rule's `(^|/)`), which an
+  `NR:` prefix would break.

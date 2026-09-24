@@ -51,7 +51,8 @@ for f in "${ALL[@]}"; do SEEN[$f]=1; done
 while IFS= read -r -d '' f; do
   [[ -n ${SEEN[$f]:-} ]] || ALL+=("$f")
 done < <(find "$TARGET" \( -name .git -o -name node_modules \) -prune -o \
-  -type f \( -name '*.qml' -o -name '*.js' -o -name '*.mjs' -o -name '*.sh' \) -print0 2>/dev/null)
+  -type f \( -name '*.qml' -o -name '*.js' -o -name '*.mjs' -o -name '*.sh' \
+             -o ! -name '*.*' -o -name '*.py' \) -print0 2>/dev/null)
 
 TEXT=()
 BIN_EXEC=()
@@ -70,6 +71,25 @@ done
 stat files_total "${#ALL[@]}"
 stat files_text "${#TEXT[@]}"
 
+# code_lines <file>: the file with every comment line emptied, so `grep -n`
+# still gives real line numbers. QML/JS: a // line, or a line inside a /* */
+# block (opened by a line starting /*, closed at the first */; what follows */
+# is code). A * line outside a block is code. Any other file: a # or <!-- line.
+code_lines() {
+  local js=0; [[ $1 =~ \.(qml|js|mjs)$ ]] && js=1
+  awk -v js="$js" '
+    function tail(s,  i) {  # code after the first */ in s, or -1 if none
+      i = index(s, "*/"); if (!i) return -1
+      return substr(s, i + 2)
+    }
+    js && blk { r = tail($0); if (r == -1) print ""; else { blk = 0; print r }; next }
+    js && /^[[:space:]]*\/\// { print ""; next }
+    js && /^[[:space:]]*\/\*/ { s = $0; sub(/^[[:space:]]*\/\*/, "", s); r = tail(s)
+                                if (r == -1) { blk = 1; print "" } else print r; next }
+    !js && /^[[:space:]]*(#|<!--)/ { print ""; next }
+    { print }' 2>/dev/null <"$1"
+}
+
 scan() {  # scan <kind> <id> <regex> [file-filter-regex] [ignore-regex]
   # ignore-regex: text removed from a line before <regex> is tried again, so
   # an allowed form (e.g. /usr/bin/env) does not count as a hit on its own.
@@ -83,7 +103,7 @@ scan() {  # scan <kind> <id> <regex> [file-filter-regex] [ignore-regex]
       [[ -n $ign ]] && ! sed -E "s#$ign##g" <<<"$rest" | grep -qE -- "$re" && continue
       local rel="${f#"$TARGET"/}"
       emit "$kind" "$id" "$rel:$ln" "$(printf '%s' "$rest" | sed -E 's/^[[:space:]]+//; s/[[:cntrl:]]/ /g' | cut -c1-200)"
-    done < <(grep -nE "$re" -- "$f" 2>/dev/null | grep -vE '^\s*[0-9]+:\s*(#|//|\*|<!--)' )
+    done < <(code_lines "$f" | grep -nE -- "$re")
   done
 }
 
@@ -108,7 +128,7 @@ for f in "${TEXT[@]}"; do
       rel="${f#"$TARGET"/}"; ln="${hit%%:*}"
       emit FIND cargo-git-unpinned "$rel:$ln" "$(sed -E 's/^\s+//' <<<"$line" | cut -c1-200)"
     fi
-  done < <(grep -nE 'cargo[[:space:]]+install[^|&;]*--git' -- "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*(#|//|\*)')
+  done < <(code_lines "$f" | grep -nE 'cargo[[:space:]]+install[^|&;]*--git')
 done
 
 # remote-git-execution-unpinned: clone an external repo then build/run it,
@@ -131,7 +151,7 @@ scan FIND sudoers-dangerous-passwordless-command \
 # /tmp file then fed to privileged process control.
 for f in "${TEXT[@]}"; do
   grep -qE '/tmp/[A-Za-z0-9._-]*(pid|PID)' -- "$f" 2>/dev/null || continue
-  if grep -qE '(sudo|pkexec)[^\n]*\b(kill|systemctl|renice|kill -)' -- "$f" 2>/dev/null; then
+  if grep -qE '(sudo|pkexec).*\b(kill|systemctl|renice)' -- "$f" 2>/dev/null; then
     ln=$(grep -nE '/tmp/[A-Za-z0-9._-]*(pid|PID)' -- "$f" | head -1 | cut -d: -f1)
     rel="${f#"$TARGET"/}"
     emit FIND privileged-process-control-from-shared-temp "$rel:${ln:-1}" "reads a PID from a shared /tmp path used near privileged process control"
@@ -245,11 +265,11 @@ for f in "${TEXT[@]}"; do
   if ! grep -q venv -- "$f" 2>/dev/null; then
     while IFS= read -r hit; do
       emit NIX global-lang-install "$rel:${hit%%:*}" "$(sed -E 's/^[[:space:]]+//' <<<"${hit#*:}" | cut -c1-200)"
-    done < <(grep -nE 'pip[0-9]?[[:space:]]+install' -- "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*(#|//|\*)')
+    done < <(code_lines "$f" | grep -nE 'pip[0-9]?[[:space:]]+install')
   fi
   while IFS= read -r hit; do
     emit NIX global-lang-install "$rel:${hit%%:*}" "$(sed -E 's/^[[:space:]]+//' <<<"${hit#*:}" | cut -c1-200)"
-  done < <(grep -nE 'npm[[:space:]]+(i|install)[[:space:]]+(-g|--global)' -- "$f" 2>/dev/null | grep -vE '^[0-9]+:[[:space:]]*(#|//|\*)')
+  done < <(code_lines "$f" | grep -nE 'npm[[:space:]]+(i|install)[[:space:]]+(-g|--global)')
 done
 
 # download-exec: fetches a file and marks it executable, i.e. runs a prebuilt
