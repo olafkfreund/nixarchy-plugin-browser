@@ -3,8 +3,9 @@
 The bar button reads the newest sections of this file to tell you what changed
 when an update is available. Keep one short line per bullet.
 
-## Unreleased
+## 1.0.0
 
+- First stable release: the audit, the panel and the CLI are feature-complete and covered by CI
 - A config file that exists but cannot be read turns the update check off, as "update_check": false does (#21)
 - The terminal detail view shows the same name, author, category and stars as the list, and a bad catalog field shows its default, not raw JSON (#22)
 

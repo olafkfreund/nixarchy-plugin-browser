@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.olafkfreund.nixarchy-plugin-browser",
   "name": "Plugin Browser",
-  "version": "0.5.1",
+  "version": "1.0.0",
   "author": "olafkfreund",
   "license": "MIT",
   "description": "Browse the Omarchy plugin marketplace and audit any plugin in a sandbox before it touches your shell. A bar button and a full-screen panel (Super+Alt+U); every install routes through a sandboxed, commit-pinned static scan.",
