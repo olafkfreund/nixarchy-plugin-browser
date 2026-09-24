@@ -211,3 +211,12 @@ function reportLines(report) {
       "dim")
   return out
 }
+
+// The card's extent along one axis: `share` of the screen, kept between
+// `floor` and `ceiling`, and never closer than `margin` to either screen edge.
+// On a screen smaller than floor + 2 * margin the card fills the screen
+// minus the margins.
+function cardExtent(screen, share, floor, ceiling, margin) {
+  var room = Math.max(0, Math.round(screen - 2 * margin))
+  return Math.min(room, Math.max(floor, Math.min(ceiling, Math.round(screen * share))))
+}
