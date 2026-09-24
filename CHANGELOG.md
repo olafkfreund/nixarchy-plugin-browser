@@ -6,6 +6,7 @@ when an update is available. Keep one short line per bullet.
 ## Unreleased
 
 - A config file that exists but cannot be read turns the update check off, as "update_check": false does (#21)
+- The terminal detail view shows the same name, author, category and stars as the list, and a bad catalog field shows its default, not raw JSON (#22)
 
 ## 0.5.1
 
