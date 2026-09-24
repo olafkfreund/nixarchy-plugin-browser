@@ -12,6 +12,16 @@ against the existing hostile fixture in `tests/catalog-list.sh`. Kept from
 the constraints: `catalog.sh list` output stays byte-identical, and the
 detail card stays one `jq --raw-output0` call.
 
+Decided at spec review (olafkfreund):
+
+- **Fixture:** extend the existing `c.tagmix` entry with the non-string cases
+  (`"name": 7`, `"author": {}`, `"category": [1]`, `"version": {…}`,
+  `"installNote": [...]`) rather than adding a new entry. `GOOD`, the row
+  count and every existing assertion stay unchanged.
+- **`installAvailable` as a string:** the behaviour change is accepted. A
+  string `"installAvailable": "true"` no longer shows the copy action in the
+  card, matching the list.
+
 ## Design
 
 ### `lib/catalog.sh`, `CATALOG_ROWS_JQ`
@@ -121,7 +131,7 @@ Still one jq for the whole card; one fewer process than today (the separate
 - **Card for a well-formed entry changes.** For good input every expression
   yields what `//` did, with two deliberate exceptions: a string
   `"installAvailable": "true"` no longer shows the copy action (it matches
-  the list), and a non-string `version`, note or commit (for example
+  the list; accepted at spec review), and a non-string `version`, note or commit (for example
   `"version": 2`) now shows its default instead of the value.
   Checked by the `a.low` assertion below and one manual card.
 - **Hosts:** none. No Nix, service or network change; the flake's `plugin`
@@ -166,12 +176,14 @@ mapfile -t d < <(detail a.low)
 ```
 
 A prototype of the jq, run while writing this spec on a copy of these
-entries, gave `c.empty|?||System|0|?|…` and `c.tagmix|?||?|5|?|…|#y`.
+entries, gave `c.empty|?||System|0|?|…` and `c.tagmix|?||?|0|?|…|#y`.
 
 **Byte-identical `list` and `catalog_lines`.** Before the change, save
 `catalog.sh list` and `catalog_lines` for `tests/`' two fixtures and for the
 cached real catalog (`~/.cache/omarchy-plugin-audit/catalog.json`) to the
-scratchpad; after it, rerun and `cmp` each pair. All must be identical.
+scratchpad; after it, rerun and `cmp` each pair. All must be identical. The
+real catalog is read from a copy under a temporary `XDG_CACHE_HOME` in the
+scratchpad, never from (or written to) the user's own cache.
 
 **Suite**, from the repo root, each prints `ok` or passes:
 
