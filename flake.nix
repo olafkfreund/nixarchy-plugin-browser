@@ -123,6 +123,22 @@
               bash work/tests/run.sh hermetic
               touch $out
             '';
+
+          # Every runtime file in the repository made it into the package: a
+          # new QML or JS file not added to `files` fails here, not on a user.
+          files = pkgs.runCommand "nixarchy-plugin-browser-files"
+            { nativeBuildInputs = [ pkgs.diffutils ]; }
+            ''
+              rc=0
+              for f in ${self}/*.qml ${self}/*.js ${self}/qmldir ${self}/manifest.json; do
+                n=$(basename "$f")
+                test -e ${plugin}/"$n" || { echo "missing from the plugin: $n"; rc=1; }
+              done
+              for d in bin lib hypr; do
+                diff -r ${self}/$d ${plugin}/$d || rc=1
+              done
+              test $rc = 0 && touch $out
+            '';
         });
     };
 }
