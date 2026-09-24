@@ -37,21 +37,24 @@ say()  { ((QUIET)) || echo "$@"; }
 fail() { echo "install.sh: $*" >&2; exit 1; }
 
 # --- prerequisites -----------------------------------------------------------
+# Looked up on the tools' own root-owned PATH, not the caller's. This must match
+# the PATH line in bin/omarchy-plugin-audit, or a tool found here is missing there.
+TOOL_PATH="/run/wrappers/bin:/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-}/bin"
 missing=()
-for c in git jq curl file gum; do command -v "$c" >/dev/null || missing+=("$c"); done
-command -v bwrap >/dev/null || say "install.sh: note — bwrap not found; the auditor refuses to run without it (unless you pass --no-sandbox). Install it with: nixarchy pkg add bubblewrap && nixarchy apply"
-(( ${#missing[@]} == 0 )) || fail "missing required tools: ${missing[*]}"
+for c in git jq curl file gum; do PATH="$TOOL_PATH" command -v "$c" >/dev/null || missing+=("$c"); done
+PATH="$TOOL_PATH" command -v bwrap >/dev/null || say "install.sh: note — bwrap not found; the auditor refuses to run without it (unless you pass --no-sandbox). Install it with: nixarchy pkg add bubblewrap && nixarchy apply"
+(( ${#missing[@]} == 0 )) || fail "missing required tools: ${missing[*]}. Install them with: nixarchy pkg add <package> && nixarchy apply"
 
 # --- 1. CLI tools ------------------------------------------------------------
 mkdir -p "$BIN_DIR"
 for tool in omarchy-plugin-audit omarchy-plugin-browser nixarchy-plugin-fix; do
   src="$REPO/bin/$tool"
   [[ -f $src ]] || fail "$src not found"
-  chmod +x "$src"
+  [[ -x $src ]] || chmod +x "$src"
   ln -sfn "$src" "$BIN_DIR/$tool"
   say "  linked $BIN_DIR/$tool -> $src"
 done
-chmod +x "$REPO/lib/omarchy-plugin-scan.sh" 2>/dev/null || true
+[[ -x $REPO/lib/omarchy-plugin-scan.sh ]] || chmod +x "$REPO/lib/omarchy-plugin-scan.sh" 2>/dev/null || true
 
 case ":$PATH:" in
   *":$BIN_DIR:"*) : ;;
