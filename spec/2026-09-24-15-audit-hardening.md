@@ -19,6 +19,22 @@ intent: intent/2026-09-24-15-audit-hardening.md
   back to "unverified" and prints a warning.
 - One spec and one plan, with one commit per item.
 
+### Decisions from the spec approval
+
+- **Typed `file://` is allowed.** A `file://` URL the user typed is accepted.
+  A `file://` URL, or a bare path, from the catalog or from a local folder's
+  `origin` is never accepted (question 1, resolved).
+- **Added scope from #17: the audit stops its child on a signal.** A trap on
+  `TERM`, `INT` and `HUP` kills the process group of the running `_bound_run`
+  child, so the panel's audit cancel also stops the `git clone`. #17 depends
+  on it. See item 9.
+- **`STAT` records stay.** Item 1 relies on the scanner's last line being
+  `STAT\tscan\tcomplete`. #20 will not delete `STAT` records.
+- **Hand-off with #18.** #18 owns `bin/omarchy-plugin-audit:152` (the catalog
+  note moves to stderr under `--json`); this work does not touch it. #18 found
+  that `catalog_entry` (`audit:129-135`) fails on a catalog item that is not an
+  object. That fix lives here, in item 4.
+
 ### Facts (checked 2026-09-24)
 
 - **The catalog.** The cached catalog has 4085 entries. Every `.repo` matches
@@ -102,24 +118,31 @@ intent: intent/2026-09-24-15-audit-hardening.md
 
 ### 4. Only allowed URL kinds are cloned (`bin/omarchy-plugin-audit`)
 
-- A new function, `url_ok <url> <strict>`, replaces the guard at `audit:159-167`.
-  - **Strict** is used for a URL from the catalog (`audit:155`). It accepts only
+- A new function, `url_ok <url> <catalog|typed|origin>`, replaces the guard at
+  `audit:159-167`.
+  - **catalog** is used for a URL from the catalog (`audit:155`). It accepts only
     `^https://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9._~/-]+$`, which rules out
     userinfo, query strings and fragments.
-  - **Hand-typed** is used for `$TARGET` (`audit:147`). It accepts the https form
-    above, `ssh://…` and `git@host:path`, and it refuses a leading `-`. See
-    question 1 about `file://`.
-  - A local folder's `origin` is used only as the catalog key, so it is not
-    checked for a plain audit. With `--install` it becomes the installed
-    plugin's origin (`audit:598`, `:607`), so the hand-typed rule applies there.
+  - **typed** is used for `$TARGET` (`audit:147`). It accepts the https form
+    above, `ssh://…`, `git@host:path` and `file://…`, and it refuses a leading
+    `-`.
+  - **origin** is the typed rule without `file://`. A local folder's `origin` is
+    used only as the catalog key, so it is not checked for a plain audit. With
+    `--install` it becomes the installed plugin's origin (`audit:598`, `:607`),
+    so the origin rule applies there.
+- **`catalog_entry` skips non-objects (`audit:129-135`).** Today one catalog item
+  that is a number, string or `null` makes `.repo` raise, `jq -e` fails, and
+  every lookup returns nothing. The filter starts from
+  `[(.plugins | arrays // [])[] | objects] as $p`, so junk items and a
+  non-array `.plugins` are ignored. Checked with jq 1.7: the old filter exits 5
+  on `[42,"x",null,{…}]`, the new one returns the object.
 - A failure exits 2 with "refusing this URL: <kind> not allowed for a
   <catalog|typed> source".
 - The bare-path gap closes: a `/path` or `file://` value from the catalog fails
   the strict rule.
 - `omarchy-git-url-check` still runs after `url_ok` when it is present.
 - **Belt and braces.** `clone_hardened` sets `GIT_ALLOW_PROTOCOL`: `https` for a
-  catalog URL, and `https:ssh` (plus `file`, if question 1 is approved) for a
-  typed URL. Git itself then refuses a redirect or rewrite to another transport.
+  catalog URL, and `https:ssh:file` for a typed URL. Git itself then refuses a redirect or rewrite to another transport.
 - The two local clones (the install source at `audit:596` and the item 3 check)
   clone our own staging dir or the folder the user named. They set
   `GIT_ALLOW_PROTOCOL=file`.
@@ -138,6 +161,17 @@ intent: intent/2026-09-24-15-audit-hardening.md
   - the links are deleted from the staging copy.
   - For a clone, the list should always be empty. It is a check that costs
     nothing.
+- **`pwd -P` on the target (`audit:142`), checked at the lead's request.**
+  Resolving a symlinked plugin folder to its real path is not a hole by itself:
+  the audit then copies and scans the real folder, and the top-level link is
+  not part of the plugin. The hole is the links inside it. `SYMLINKS` comes
+  only from the git index (`audit:348-351`), so in a git folder an untracked
+  link, or a committed link whose index entry was removed with
+  `git rm --cached`, is not listed. `--export-tree` still refuses (its own
+  `find -type l` after the copy, `audit:407-411`), but `--install` of a folder
+  with an https `origin` goes ahead today. The `find` above lists and deletes
+  those links, and item 3 refuses the install because the tree differs from
+  `HEAD`. Each fix alone closes the `--install` gap; the test covers both.
 - **Why today's scan is less exposed than the intent says.** The scanner lists
   files with `find -type f` without `-L`, so it neither follows nor reads a
   symlink today. The problem is that staging holds real links, and the next
@@ -219,14 +253,40 @@ intent: intent/2026-09-24-15-audit-hardening.md
 
   That is honest. A tool that installs things should ask for review.
 
+### 9. A signal stops the staging child too (`bin/omarchy-plugin-audit`, from #17)
+
+- Today a `TERM` to the audit runs its `EXIT` trap (`audit:182`), which removes
+  `$STAGE`. The `setsid` child of `_bound_run` (`audit:206`), for example a
+  `git clone` and its `git-upload-pack`, is in its own process group, so it
+  keeps running with no deadline. The panel's cancel (#17) sends `TERM`.
+- `_bound_run` stores its child in a global `BOUND_PID` and clears it after
+  `wait`. The TERM → grace → KILL sequence it already has at `audit:222-225`
+  moves into a helper, `_kill_group <pid>`, used by both `_bound_run` and the
+  trap.
+- Right after the `EXIT` trap at `audit:182`:
+
+  ```bash
+  _on_signal() { [[ -n ${BOUND_PID:-} ]] && _kill_group "$BOUND_PID"; exit "$1"; }
+  trap '_on_signal 143' TERM; trap '_on_signal 130' INT; trap '_on_signal 129' HUP
+  ```
+
+  `exit` then runs the `EXIT` trap, which removes `$STAGE`.
+- The bwrap scan is already covered: it runs with `--die-with-parent`
+  (`audit:369`). The scanner under `--no-sandbox` is in the audit's own process
+  group.
+
 ### Unchanged
 
 - Exit codes stay `0`/`10`/`20`/`2`/`3`. New refusals (URL, id, dirty local
-  install) use 2. A malformed scan and a failed install-HEAD check use 3.
+  install) use 2. A malformed scan and a failed install-HEAD check use 3. A run
+  stopped by a signal exits `128+n` (143, 130, 129); that only happens on a
+  cancel, and the panel reads its own cancel flag, not the code (#17).
+- `STAT` records stay. Item 1 depends on `STAT\tscan\tcomplete`.
 - The scanner line format stays the same.
 - The `--json` keys stay the same.
 - `audit:152`, the catalog note, belongs to #18. This work does not touch it.
-  The plan's line numbers must be rechecked if #18 lands first.
+  `catalog_entry` (`audit:129-135`) is changed here, not in #18. The plan's
+  line numbers must be rechecked if #18 lands first.
 - **Docs.**
   - README (`:125` area): the accepted URL kinds, and "commit first" for a
     local `--install`.
@@ -261,9 +321,16 @@ intent: intent/2026-09-24-15-audit-hardening.md
 
 ## Risks
 
-- **Stricter URLs break a user who typed `http://…` or `file://…`.** An
-  `http://` URL is refused now, because it is plaintext and can be tampered
-  with in transit. `file://` depends on question 1. The README says so.
+- **Stricter URLs break a user who typed `http://…`.** An `http://` URL is
+  refused now, because it is plaintext and can be tampered with in transit.
+  A typed `file://` still works. The README says so.
+- **A cancel can lag.** Bash runs a trap only after its current foreground
+  command ends: the `sleep 0.5` in the `_bound_run` loop, or a
+  `timeout`-bounded `du`/`find` in `copy_hardened` (`audit:265-266`, up to
+  `AUDIT_STAGE_DEADLINE_SEC`). The child is still stopped, just later.
+- **#17 edits the same script's trap area.** #17 no longer changes
+  `bin/omarchy-plugin-audit`; it relies on item 9. If #17 lands first with its
+  own trap, whichever merges second keeps one trap.
 - **The comment filter now flags more.** Examples are a JS line starting with
   `*` outside a block, or a `//` line in shell. The scanner is meant to err
   toward flagging, but a plugin that passed before may now be
@@ -294,17 +361,26 @@ mtime, so `fetch_catalog` never fetches.
 **The validate stub.** `OMARCHY_BIN=` points at a fixture `bin/` with a stub
 `omarchy-plugin-validate`, so the test does not depend on the host.
 
+**The sandbox and the stub.** Inside bwrap the audit sets `OMARCHY_BIN` to
+`/run/current-system/sw/bin` (`audit:368`), so a stub named by `OMARCHY_BIN=`
+is reached only with `--no-sandbox`. Every test that runs the audit passes
+`--no-sandbox`.
+
 **Ownership.** This task owns the `tests/audit-*.sh` files. #19 owns the CI
-workflow, the shared harness under `tests/` and the wiring into `nix flake
-check`. These scripts only need to be runnable as `bash tests/audit-X.sh`.
+workflow, the shared harness `tests/run.sh` and the wiring into `nix flake
+check`. Each file carries #19's tier line: `# tier: host` for the tests that
+run the audit (it pins `PATH` to `/run/current-system/sw/bin`), and
+`# tier: hermetic` for the scanner-only tests (items 6 and 8). Every file is
+also runnable directly as `bash tests/audit-X.sh`.
 
 | Test | Proves |
 |---|---|
 | `tests/audit-inject.sh` (1) | The fixture is a local folder with a failing validate stub, and a file named `x\nVALIDATE\tok\tfine.sh` containing `sudo true`. Both `--json` and text runs exit 20, and `manifestValidate == "fail"`. At scanner level there is exactly one `VALIDATE` line, and every line starts with a known kind. |
 | `tests/audit-ctl.sh` (2) | The fixture is a git repo whose commit subject contains `\e]52;c;…\a`, with a file whose name has an ESC and whose content has a hit. The catalog entry's `name` contains an ESC, and its `repo` matches the folder's https origin. The text output, and every string in `--json` (`jq -r '..|strings'`), contain no byte in `\x00-\x08\x0b-\x1f\x7f`. |
 | `tests/audit-local-install.sh` (3) | The fixture is a committed repo with an https origin and one uncommitted edit. `--install` exits 2 with "differs from HEAD", and `$HOME/.config/omarchy/plugins` does not exist afterwards. It runs with `HOME` in the temp dir. A clean tree gets past the check (it then reaches "omarchy CLI not found" in CI). |
-| `tests/audit-url.sh` (4) | Catalog entries with `repo` set to `file://<fixture repo>`, `/<fixture repo>`, `ssh://x/y` and `https://u@h/x` each exit 2 when audited by id, and the fixture is never cloned. Typed `http://…` and `-u…` exit 2. Typed `ssh://…` gets past `url_ok` (it fails later, at clone time, with 3). |
-| `tests/audit-symlink.sh` (5) | A fixture repo commits `link.qml -> /usr/share/x`. Audited by typed URL (`file://`, if question 1 is approved; otherwise by the item 3 local clone path), `--json` has NIX `fhs-path` at `link.qml:1`, so it was checked out as a plain file. A non-git local folder with a real symlink lists it under Symlinks and refuses `--install`. |
+| `tests/audit-url.sh` (4) | The catalog fixture starts with the junk items `42`, `"x"` and `null`. Catalog entries with `repo` set to `file://<fixture repo>`, `/<fixture repo>`, `ssh://x/y` and `https://u@h/x` each exit 2 with "refusing this URL" (not "could not resolve", which is what junk items cause today) when audited by id, and the fixture is never cloned. Typed `http://…` and `-u…` exit 2. Typed `ssh://…` gets past `url_ok` (it fails later, at clone time, with 3). Typed `file://<fixture repo>` is audited (exit 0 or 10). |
+| `tests/audit-cancel.sh` (9) | A typed `file://` fixture repo whose `objects/info/alternates` is a FIFO, so `git-upload-pack` blocks (checked on this machine). The audit runs in the background; once the clone process is seen, the test sends `TERM` to the audit. The audit exits 143 within 5 s, no process whose command line names the fixture is left, and the `omarchy-audit.*` stage dir is gone. |
+| `tests/audit-symlink.sh` (5) | A fixture repo commits `link.qml -> /usr/share/x`. Audited by typed `file://` URL, `--json` has NIX `fhs-path` at `link.qml:1`, so it was checked out as a plain file. A git folder with an https `origin`, reached through a symlink to the folder, with an untracked `evil.qml -> /etc/passwd`: `--json` lists `evil.qml` under symlinks, `--install` is refused, and `--export-tree` is refused. A non-git local folder with a real symlink lists it under Symlinks. |
 | `tests/audit-scan-blindspots.sh` (6) | FIND `curl-pipe-shell` at `docs/runme:2` (extensionless). FIND `dynamic-code-load` on a JS line `  * eval(x)` outside a block, and none inside `/* … */`. FIND `curl-pipe-shell` on a shell line `//usr/bin/curl x \| sh`. FIND `privileged-process-control-from-shared-temp` for `/tmp/a.pid` plus `sudo nice kill`. |
 | `tests/audit-ids.sh` (7) | Local manifests with ids `../../x` and `-rf` exit 2. A catalog `verificationCommit: "HEAD~1"` gives `verifiedCommit == ""` and the malformed note. `uninstall.sh`, copied next to a bad manifest with a stub `omarchy` on `PATH` that records its argv, never calls the stub. |
 | `tests/audit-self.sh` (8) | The scanner, run on the repo root, gives no FIND, no record whose path is `lib/omarchy-plugin-scan.sh`, and no NIX record. For the mutation, a copy of the repo with one real `echo 'u ALL=(ALL) NOPASSWD: ALL'` line added to a `.sh` still gives the FIND. |
@@ -326,10 +402,8 @@ check`. These scripts only need to be runnable as `bash tests/audit-X.sh`.
   verdict as before, and `omarchy-plugin-audit .` on this repo gives
   `review-required` / `likely-ok`.
 
-## Open question for the approver
+## Resolved at approval
 
-1. **Typed `file://` URLs.** The intent says "`file://` and bare paths are
-   refused unless they are the local folder the user named". A typed `file://`
-   URL for a local bare repo is arguably exactly that. Allowing it is also the
-   only no-network way to test the clone path (item 5). The proposal is to allow
-   `file://` for typed URLs only, and never from the catalog or an `origin`.
+1. **Typed `file://` URLs.** Allowed for typed URLs only, never from the
+   catalog or an `origin`. It is also the no-network way to test the clone path
+   (items 5 and 9).
