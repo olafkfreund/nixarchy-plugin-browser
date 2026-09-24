@@ -10,6 +10,25 @@ Approved in the intent: coerce the display fields and skip only entries that
 have no usable string `id`. In `--json` mode, the catalog note goes to stderr.
 Fix `lib/update.sh` here, keep its interface, and offer the fix upstream.
 
+Approver decisions on this spec (olafkfreund, 2026-09-24):
+
+1. `OMARCHY_PLUGIN_UPDATE_RAW` no longer accepts `file://`. The
+   `docs/update-alerts.md` sentence that recommends it is replaced with the
+   cache-file method (section 4).
+2. Control characters are stripped in both the list and the detail view. An
+   empty name shows the id; an empty author or category shows `?`.
+3. The tests stay in `tests/catalog-list.sh`, plus the new `tests/update.sh`.
+   To test the terminal list there without copying its code, `list_lines`
+   moves into `lib/catalog.sh` as `catalog_lines` (section 1; this
+   consequence is the spec's, not part of the decision).
+4. Added scope: the preview off switch fails open when jq cannot run. It now
+   fails closed, with a regression test (section 6).
+5. Added scope, from #17: the terminal UI copies the catalog's
+   `installCommand` verbatim. It now builds `omarchy plugin add <repo>` from
+   the checked repo, the same rule as the panel's #17 decision (section 7).
+6. #15 now fixes `catalog_entry` in the audit. This task owns only
+   `bin/omarchy-plugin-audit:152`.
+
 ## Design
 
 ### 1. One shared catalog projection (`lib/catalog.sh`)
@@ -26,11 +45,15 @@ file (`:42`), so it needs no new plumbing.
 # dropped. Control characters never reach a terminal or the panel.
 CATALOG_ROWS_JQ='
   def _s: if type == "string" then gsub("[[:cntrl:]]"; " ") else "" end;
+  def install_command:
+    if .installAvailable == true
+       and (.repo | type == "string" and test("^https://github\\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/?\\z"))
+    then "omarchy plugin add " + (.repo | sub("/\\z"; "")) else "" end;
   def catalog_rows:
     [ (.plugins // [])[]
       | objects
       | select(.sourceType == "community")
-      | select(.id | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"))
+      | select(.id | type == "string" and test("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\\z"))
       | { id,
           name: ((.name | _s) as $n | if $n == "" then .id else $n end),
           author: (.author | _s), category: (.category | _s),
@@ -41,7 +64,7 @@ CATALOG_ROWS_JQ='
                   elif .verificationSnapshotStatus == "verified" then "snapshot"
                   else "unverified" end),
           description: (.description | _s), repo: (.repo | _s),
-          installCommand: (.installCommand | _s), installAvailable: (.installAvailable == true),
+          installCommand: install_command, installAvailable: (.installAvailable == true),
           preview: (.previewThumbnail | _s) } ]
     | sort_by(-.stars);'
 ```
@@ -56,6 +79,15 @@ Why each piece is there:
   panel and the terminal. The terminal needs this too: `list_lines` takes the
   id as the last whitespace token (`bin/omarchy-plugin-browser:59`), so an id
   with a space would break the picker.
+- The regexes end in `\z`, not `$`. In jq 1.8.2, `$` also matches before a
+  trailing newline: `"abc\n" | test("^[a-z]+$")` is `true`. With `$`, an id
+  of `"a.b\n"` would pass and split its picker line in two, and a repo of
+  `"https://github.com/a/b\n"` would build a two-line install command.
+  `\z` matches only at the very end. JavaScript's `$` in `Model.js` has no
+  such case, so the panel and the terminal now agree. (`^` does not match
+  after a newline in jq, so it stays.)
+- `install_command` is section 7. It is defined here so that the panel's
+  row and the terminal's detail view use one rule.
 - `stars`: a number passes through. A numeric string (`"5"`) becomes the
   number. Anything else becomes 0, and so do NaN and infinity. `"nan"`
   converts to NaN and serialises as `null`, and `1e400` is infinite, so
@@ -82,11 +114,17 @@ values.
 jq -c "$CATALOG_ROWS_JQ catalog_rows" "$CATALOG" ;;
 ```
 
-`bin/omarchy-plugin-browser:51-74`: `badge_jq` is deleted. The badge glyph
-now comes from the projected `badge` word, and `list_lines` becomes:
+`bin/omarchy-plugin-browser:51-74`: `badge_jq` and `list_lines` are deleted.
+The terminal's list moves into `lib/catalog.sh` as `catalog_lines`, next to
+`CATALOG_ROWS_JQ`, so that `tests/catalog-list.sh` runs the real function
+(decision 3), not a copy of its jq. The badge glyph now comes from the
+projected `badge` word:
 
 ```bash
-list_lines() {  # one selectable line per plugin; id is the final token
+# The terminal browser's list: one selectable line per plugin, id the final
+# token. Badge: ✔ verified snapshot & upstream matches · ◐ snapshot verified
+# but upstream moved (update unverified) · · unverified.
+catalog_lines() {  # catalog_lines [category]
   jq -r "$CATALOG_ROWS_JQ"'
     catalog_rows[]
     | select($cat == "" or .category == $cat)
@@ -96,11 +134,13 @@ list_lines() {  # one selectable line per plugin; id is the final token
         "   ★", (.stars | tostring),
         (if (.tags | length) > 0 then "   #" + (.tags | join(" #")) else "" end),
         "   ", .id ] | join("")
-  ' --arg cat "$ONLY_CAT" "$CATALOG"
+  ' --arg cat "${1:-}" "$CATALOG"
 }
 ```
 
-The badge comment (`:51-52`) moves above `list_lines`.
+`main` (`bin/omarchy-plugin-browser:153`) calls `catalog_lines "$ONLY_CAT"`
+where it called `list_lines`. The header comment of `lib/catalog.sh`
+(`:5-11`) gains `catalog_lines [category]` in its list of what callers get.
 
 The detail view reads the raw entry, not the projection, because it needs
 fields the projection drops (version, commits, installNote). Two lines there
@@ -109,8 +149,8 @@ fail on the same kinds of input, so both are hardened:
 - `entry_by_id` (`:76`) becomes
   `jq -c --arg id "$1" 'first(.plugins[] | objects | select(.id == $id)) | walk(if type == "string" then gsub("[[:cntrl:]]"; " ") else . end)' "$CATALOG"`.
   A non-object element no longer stops the search. Control characters are
-  stripped from every field that `show_detail` prints. `first(...)` replaces
-  `| head -1`.
+  stripped from every field that `show_detail` prints (decision 2).
+  `first(...)` replaces `| head -1`.
 - The tags line (`:92`) becomes
   `jq -r '(.tags | if type == "array" then map(strings) else [] end) as $t | if ($t | length) > 0 then "#" + ($t | join("  #")) else "" end'`.
 
@@ -139,7 +179,9 @@ fetch_catalog || say "${YEL}note: could not fetch the marketplace catalog; conti
 
 `AS_JSON` is set during option parsing (`:83,90`), before this line. Text
 mode still writes to fd 1 with the same bytes. `say` itself does not change,
-so #15's ownership of the rest of the file is respected.
+so #15's ownership of the rest of the file is respected. `catalog_entry`
+(`:129`), which reads the same catalog, is hardened by #15 (decision 6), not
+here.
 
 ### 4. `lib/update.sh`
 
@@ -154,10 +196,18 @@ so #15's ownership of the rest of the file is respected.
 - **HTTPS only** (shared part, `fetch`, `:93-95`): add `--proto '=https'
   --tlsv1.2`, the same flags as `lib/catalog.sh:48,121`. A non-HTTPS
   `OMARCHY_PLUGIN_UPDATE_RAW` then fails the fetch. `check` falls back to
-  the cache, as it does offline. `docs/update-alerts.md:113` currently says
-  to "Point `OMARCHY_PLUGIN_UPDATE_RAW` at a `file://` folder to test the
-  fetch offline". That sentence is replaced with the cache-file method from
-  the same bullet (`:110-112`), plus a note that the fetch is HTTPS-only.
+  the cache, as it does offline. `file://` is no longer accepted
+  (decision 1). `docs/update-alerts.md` says otherwise in two places, and
+  both change:
+  - `:113`, "Point `OMARCHY_PLUGIN_UPDATE_RAW` at a `file://` folder to test
+    the fetch offline", becomes: "To test without the network, write the
+    cache file as above; the fetch is HTTPS-only, so
+    `OMARCHY_PLUGIN_UPDATE_RAW` must be an `https://` base URL."
+  - `:131`, "`OMARCHY_PLUGIN_UPDATE_RAW` (base URL, `file://` works)",
+    becomes "(an `https://` base URL)".
+  The "In this plugin" section (`:134-141`) also says "Kind: bar-only
+  widget"; it gains that the keepLoaded panel needs the offered shell
+  restart.
 - **`ver_key`** (shared part, `:54-60`): each of the first three numeric
   parts becomes a two-digit length followed by its digits, with leading
   zeros stripped. Comparing two keys then compares the lengths first and the
@@ -207,8 +257,59 @@ so #15's ownership of the rest of the file is respected.
 
 Add bullets for users under the next version: one bad marketplace entry no
 longer empties the list, the update terminal now offers the shell restart,
-and the update check is HTTPS-only. The manifest version bump belongs to
-release, not to this spec.
+the update check is HTTPS-only, and the terminal browser copies an install
+command built from the plugin's GitHub repo. The manifest version bump
+belongs to release, not to this spec.
+
+### 6. The preview off switch fails closed (`lib/catalog.sh:80-83`)
+
+Today `previews_enabled` is
+`[[ $(jq -r '.previews' "$PREVIEW_CONFIG" 2>/dev/null) != false ]]`. When the
+config file exists but jq cannot answer (the file is malformed JSON,
+unreadable, or jq is missing), the substitution is empty, `"" != false` is
+true, and previews are fetched. The user asked for no network fetch and
+gets one; offline, `preview` exits 3 (fetch failed) instead of 4 (off).
+
+```bash
+# "previews": false in the plugin's config turns fetching off entirely. A
+# config that exists but cannot be read counts as off: the switch fails closed.
+previews_enabled() {
+  [[ -e $PREVIEW_CONFIG ]] || return 0
+  local v
+  v=$(jq -r '.previews' "$PREVIEW_CONFIG" 2>/dev/null) || return 1
+  [[ $v != false ]]
+}
+```
+
+`-e` instead of `-f`, so a directory or other non-file in the config's place
+also counts as off. No config file still means on, as today.
+`lib/update.sh` `enabled()` (`:97-100`) has the same fail-open shape for
+`"update_check": false`. That is the shared file and outside this decision;
+it is recorded as a follow-up, not changed here.
+
+### 7. The terminal copies a command built from the checked repo (`bin/omarchy-plugin-browser:88,115,124`)
+
+The detail view copies `.installCommand` from the catalog verbatim
+(`:88`, `:124`). A catalog entry can point that text at another repo, or add
+flags or a pipe, while the pane shows the plugin's own repo. The panel's
+#17 decision replaced this with `omarchy plugin add <repo>` built from a
+checked GitHub URL. The terminal takes the same rule.
+
+- The rule is `install_command` in `CATALOG_ROWS_JQ` (section 1): the
+  command is `"omarchy plugin add " + repo` without a trailing slash, when
+  `installAvailable` is `true` and `repo` matches #17's `REPO_RE`,
+  `^https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/?$` (with `\z` for
+  `$`, see section 1). Otherwise it is `""`. No `--enable`, no `--yes`.
+- `:88` becomes `install=$(jq -r "$CATALOG_ROWS_JQ install_command" <<<"$e")`.
+  `$e` is the walked entry, so control characters are already spaces, and a
+  space fails the regex.
+- `:115` stays `[[ $avail == true && -n $install ]]`, so a plugin without a
+  checked repo shows no copy action. `:124` prints and copies `$install` as
+  before, which now holds the built command.
+- The projection's `installCommand` (`catalog.sh list`) becomes the same
+  built command. The panel reads it until #17 lands, so the panel is safe in
+  the meantime. After #17 the panel ignores the field; #17's spec keeps it
+  emitted, and this makes what it emits safe.
 
 ## Alternatives rejected
 
@@ -235,8 +336,16 @@ release, not to this spec.
   key per section heading, and it would split the logic between two tools.
 - **Allowing `file://` as well as `https`** to keep the documented test hook.
   The intent requires HTTPS only, and the cache-file method already tests the
-  banner without a fetch.
+  banner without a fetch. Rejected by decision 1.
 - **Accepting `--category=<name>`.** Nobody has asked for it.
+- **Keeping the terminal-list test as a copy of the `list_lines` jq in
+  `tests/catalog-list.sh`.** A copy can drift from the code it claims to
+  test. Moving the function into the sourced library costs nothing.
+- **Cleaning the catalog's `installCommand` to one line and still copying
+  it.** Rejected by #17 for the panel, for the same reason: the text still
+  comes from the marketplace.
+- **Treating a malformed preview config as "on".** That is today's
+  behaviour, and decision 4 removes it.
 
 ## Risks
 
@@ -266,6 +375,15 @@ release, not to this spec.
 - **Merge overlap with #15** on `bin/omarchy-plugin-audit`. The change is
   confined to line 152. If #15 lands first and moves the line, the plan
   re-applies it to wherever `fetch_catalog || say` ends up.
+- **A plugin without a GitHub repo loses its copy action** in the terminal,
+  as it does in the panel after #17. Such a plugin is audited or opened by
+  repo instead.
+- **A broken preview config now turns previews off** until it is fixed. The
+  panel shows no image, as for any failed preview; it does not read the exit
+  code. `catalog.sh preview` says "previews are off" on stderr.
+- **Merge overlap with #17** on the `installCommand` meaning. #17 removes
+  the field from the panel's rows; this task changes what `catalog.sh list`
+  emits in it. Either order works, and neither edits the other's lines.
 - Nothing here touches the flake package's file set, the Nix checks, or any
   host.
 
@@ -290,11 +408,24 @@ existing style (print `ok`, exit 0, or name the first failure and exit 1), and
 
   The existing checks are unchanged, which covers "a good catalog lists as
   before".
-- **Terminal list**: the same script checks `list_lines` output. It sources
-  `lib/catalog.sh` and runs the same `jq -r "$CATALOG_ROWS_JQ"…` pipeline
-  against the fixture. The check: exit 0, one line per usable row, and the
-  last token of each line is its id. Alternatively, `list_lines` moves into
-  `lib/catalog.sh` so the test can call it directly (see the questions below).
+  Added with the approval: an id of `"c.nl\n"` (dropped, the `\z` case), a
+  row whose `installCommand` is `"curl x | sh"` with a GitHub repo (its
+  `installCommand` is the built `omarchy plugin add …`), and a row with
+  `installAvailable: true` and a non-GitHub repo (its `installCommand` is
+  `""`).
+- **Terminal list**: the same script sources `lib/catalog.sh` and calls
+  `CATALOG=… catalog_lines` against the fixture (decision 3). The check:
+  exit 0, one line per usable row, the last token of each line is its id,
+  an empty author prints `?`, and `catalog_lines System` lists only that
+  category.
+- **Preview off switch fails closed**, in the existing `tests/preview.sh`,
+  whose off-switch block (`:43-49`) this extends. With a config of `{`
+  (malformed), `bash lib/catalog.sh preview <good path>` exits 4 and does not
+  create `previews/`. Today it goes to the network: exit 3 offline, or 0.
+  A second case sources the library, sets `PATH` to an empty directory
+  (jq missing) and calls `fetch_preview`: exit 4. This file was not named in
+  decision 3, but it is the existing home of the off-switch test; a new file
+  is not added.
 - **`--category`**, in the same script:
   `timeout 5 bash bin/omarchy-plugin-browser --category` must exit 2, not
   124. The same goes for `--category --refresh`. Argument parsing runs before
