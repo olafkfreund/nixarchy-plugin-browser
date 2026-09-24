@@ -58,8 +58,9 @@ build stamp `install.sh` wrote names another version; the widget then shows
 the `check` command exits non-zero; treat that as a mismatch too.
 
 **Opt-out:** `"update_check": false` in the plugin's config file (named below)
-turns the check off. Bar widgets also honour `"update_check": false` in their
-`shell.json` layout entry.
+turns the check off.
+A config file that exists but cannot be read also turns it off. Bar widgets
+also honour `"update_check": false` in their `shell.json` layout entry.
 
 ## Why it is built this way
 
