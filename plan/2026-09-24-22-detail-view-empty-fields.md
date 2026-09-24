@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 issue: 22
 spec: spec/2026-09-24-22-detail-view-empty-fields.md
 ---
