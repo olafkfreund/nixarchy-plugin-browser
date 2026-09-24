@@ -283,3 +283,12 @@ Run before and after each phase; all must pass:
   open actions, and `run_tool` for audit and fix, over a fixture catalog
   (tab and newline in fields, empty fields, odd types, a bad id) and 400 real
   entries: byte-identical.
+- **Step 11** needed no commit: `STAT` and `stat()` are unchanged
+  (`lib/omarchy-plugin-scan.sh:15`, `:35`, `:314`).
+- **Steps 13 and 14, verification.** Checked by `tests/model-check.mjs` and
+  `nix flake check`; the running shell was not reloaded to look at the sheet
+  (agents do not touch the user's session). Step 13 renames the Details back
+  row's keys to `Esc  ←  Backspace`, so `tests/model-check.mjs` follows it.
+- **Step 15.** The Kind line keeps what #18 added; "the update terminal"
+  there becomes "the update run", so the "In this plugin" grep for
+  "terminal" is empty as the phase A test expects.
