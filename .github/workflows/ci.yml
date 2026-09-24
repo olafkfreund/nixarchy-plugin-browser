@@ -1,0 +1,33 @@
+name: ci
+on:
+  pull_request:
+  push: { branches: [master] }
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  check:                      # the required status name
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      - name: nix flake check (hermetic tier, package, file list, HM module)
+        run: nix flake check -L
+      - name: Root-owned /run/current-system/sw from the locked nixpkgs
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0   # bwrap
+          sudo mkdir -p /run/current-system/sw/bin
+          for p in $(nix build --no-link --print-out-paths --inputs-from . \
+                nixpkgs#bash nixpkgs#coreutils nixpkgs#findutils nixpkgs#gnugrep \
+                nixpkgs#gnused nixpkgs#gawk nixpkgs#jq nixpkgs#file nixpkgs#git \
+                nixpkgs#curl nixpkgs#bubblewrap nixpkgs#util-linux nixpkgs#diffutils); do
+            [ -d "$p/bin" ] || continue   # the -man outputs
+            sudo ln -sf -t /run/current-system/sw/bin "$p"/bin/*
+          done
+      - name: Host tier
+        run: bash tests/run.sh host
