@@ -25,7 +25,7 @@ Rectangle {
       text: "Keys"
       color: root.foreground
       font.family: root.fontFamily
-      font.pixelSize: Style.font.body
+      font.pixelSize: Style.font.heading
       font.bold: true
     }
 
@@ -38,25 +38,25 @@ Rectangle {
         topPadding: index > 0 && Model.SHORTCUTS[index - 1].group !== modelData.group ? Style.spacing.md : 0
 
         Text {
-          width: Style.space(90)
+          width: Style.space(120)
           text: modelData.group
           color: Color.muted
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.subtitle
           opacity: index === 0 || Model.SHORTCUTS[index - 1].group !== modelData.group ? 1 : 0
         }
         Text {
-          width: Style.space(170)
+          width: Style.space(220)
           text: modelData.keys
           color: Color.accent
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.subtitle
         }
         Text {
           text: modelData.what
           color: root.foreground
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.subtitle
         }
       }
     }
