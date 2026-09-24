@@ -44,6 +44,7 @@ The repository is a flake. With nixarchy's plugin option:
 ```nix
 # flake.nix inputs
 nixarchy-plugin-browser.url = "github:olafkfreund/nixarchy-plugin-browser";
+nixarchy-plugin-browser.inputs.nixpkgs.follows = "nixpkgs";
 
 # a Home Manager module
 { inputs, pkgs, ... }:

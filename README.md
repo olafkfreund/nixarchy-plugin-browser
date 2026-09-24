@@ -58,11 +58,16 @@ omarchy plugin enable io.github.olafkfreund.nixarchy-plugin-browser
 
 The repository is a flake. On nixarchy, declare the plugin with nixarchy's
 own option. It links the plugin read-only into `~/.config/omarchy/plugins/`
-and validates it when you rebuild:
+and validates it when you rebuild.
+
+Installed it with `install.sh` or `omarchy plugin add` before? Run
+`./uninstall.sh` from that clone first. It removes the `~/.local/bin` links
+and the plugin checkout.
 
 ```nix
 # flake.nix inputs
 nixarchy-plugin-browser.url = "github:olafkfreund/nixarchy-plugin-browser";
+nixarchy-plugin-browser.inputs.nixpkgs.follows = "nixpkgs";
 
 # a Home Manager module
 { inputs, pkgs, ... }:
