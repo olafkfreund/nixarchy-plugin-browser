@@ -96,30 +96,32 @@ view's own size. The header comment at `Menu.qml:11-12` ("the view drawn
 larger so it reads from a distance") is changed to say the card is a share of
 the screen, drawn at the theme's sizes.
 
-### 3. Reading size: one token step up (`BrowserView.qml`, `ShortcutSheet.qml`)
+### 3. Reading size: two token steps up (`BrowserView.qml`, `ShortcutSheet.qml`)
 
 Without the transform, text drops from 1.45× to 1× the theme's size. Caption
 text goes from 14.5 px to 10 px at base 12, which is smaller than the bar's
-body text. Following decision 3, the panel moves one step up the theme's own
-scale:
+body text. Following decision 3 and the approver's answer to question 2
+(two steps, not one), the panel moves two steps up the ladder this spec
+counts in (`caption` → `body` → `subtitle` → `title` → `heading`):
 
 | Where | Now | New | Now at 1.45× | New px (base 12) |
 | --- | --- | --- | --- | --- |
 | Title `BrowserView.qml:138`, detail name `:326` | `font.body` bold | `font.heading` bold | 17.4 | 16 |
-| Search input `:172` (the placeholder inherits it) | `font.body` | `font.subtitle` | 17.4 | 13 |
-| Every `font.caption` in `BrowserView.qml` (header count `:150`, rows `:233` `:244`, detail text `:338` `:348` `:358` `:370` `:380` `:395` `:408`, footer `:427`) | `font.caption` | `font.body` | 14.5 | 12 |
+| Search input `:172` (the placeholder inherits it) | `font.body` | `font.title` | 17.4 | 14 |
+| Every `font.caption` in `BrowserView.qml` (header count `:150`, rows `:233` `:244`, detail text `:338` `:348` `:358` `:370` `:380` `:395` `:408`, footer `:427`) | `font.caption` | `font.subtitle` | 14.5 | 13 |
 | `ShortcutSheet.qml:28` heading | `font.body` bold | `font.heading` bold | 17.4 | 16 |
-| `ShortcutSheet.qml:45` `:53` `:59` | `font.caption` | `font.body` | 14.5 | 12 |
+| `ShortcutSheet.qml:45` `:53` `:59` | `font.caption` | `font.subtitle` | 14.5 | 13 |
 
-That comes to about 0.83× of today's size in the body text, and to the
-same size as the rest of the shell's panel text. A larger theme base size
-still makes all of it larger. `ShortcutSheet.qml` is included, even though
-the intent expected it to stay as it is: it is drawn inside `BrowserView`, so
-it also loses the 1.45× today. If it kept `caption`, the key sheet would be
-the one place in the panel with 10 px text. Its column widths
+Titles stay at `font.heading`: it is the largest text token below
+`display` (24 px), and `iconLarge` is an icon size, so there is no
+second step for them. Body text lands at about 0.9× of today's size
+(13 px against 14.5 px), a little above the rest of the shell's panel
+text. A larger theme base size still makes all of it larger.
+`ShortcutSheet.qml` is included (approved, question 3): it is drawn inside
+`BrowserView`, so it also loses the 1.45× today. Its column widths
 `Style.space(90)` and `Style.space(170)` (`ShortcutSheet.qml:41`, `:49`)
-grow by the same 1.2 as the text, to `Style.space(110)` and
-`Style.space(200)`, so the longest key labels still fit.
+grow by the same 1.3 as the text (10 → 13 px), to `Style.space(120)` and
+`Style.space(220)`, so the longest key labels still fit.
 
 The spacing tokens (`Style.spacing.*`), `Style.space(40)` scroll step
 (`BrowserView.qml:110`) and the preview cap `Style.space(260)` (`:310`) stay
@@ -169,15 +171,16 @@ and the scripts in `bin/` and `lib/`.
 - **Docs screenshots (#12).** `docs/img/01-list.webp` to `09-agent-warning.webp`,
   `tour.gif`, `tour.webm` and `tour-poster.webp` show the 1.45× panel.
   After this change the card is larger relative to its text, and the text is
-  smaller. The pages still describe what they show, but the images will not
-  match the new build. They need retaking with the #12 capture procedure on
-  razer. `10-add-plugin-row.webp` shows the shell's Setup menu, not this
-  panel, and does not need retaking. Retaking should be its own follow-up
-  step or issue, so this change does not wait on a capture session.
-- **Smaller text than today.** At base 12, body text goes from 14.5 px to
-  12 px. Someone who liked the "reads from a distance" size will see it
-  shrink. The remedy is the theme's base font size, which is the intent's
-  outcome, or the approver's question 2 below.
+  a little smaller. They are retaken with the #12 capture procedure on
+  razer as the last step of this plan (approved, question 4), so the PR
+  does not merge with images that do not match the build.
+  `10-add-plugin-row.webp` shows the shell's Setup menu, not this panel,
+  and is not retaken.
+- **Slightly smaller text than today.** At base 12, body text goes from
+  14.5 px to 13 px and titles from 17.4 px to 16 px. The approver chose two
+  steps so the text is not smaller than today; at base 12 it is still about
+  10% smaller, because the theme has no token at 14.5 px. The remedy is the
+  theme's base font size (at base 13, `subtitle` is 14 px), not a factor.
 - **`Style.gapsOut` in the real shell.** The Style copy used here does not
   define it. `Menu.qml:91` already relies on it, so the risk is low. If it
   were ever missing, `cardExtent` would get `undefined`, `room` would be
@@ -228,16 +231,13 @@ and the scripts in `bin/` and `lib/`.
   before.
 - CI wiring for `tests/model-check.mjs` belongs to #19 and is not in scope here.
 
-## Questions for the approver
+## Approver decisions (olafkfreund, 2026-09-24)
 
-1. **Share and limits.** Is 60% × 70% of the screen, with a floor of
-   `Style.space(560)` × `Style.space(420)` and a ceiling of
-   `Style.space(960)` × `Style.space(760)`, the right choice? The intent
-   gave 60/70 as an example, and the approval did not fix numbers.
-2. **Token step.** Body text becomes `font.body` (12 px at base 12, down from
-   14.5 px). Is one step up enough, or should it go two steps (rows at
-   `font.subtitle`, 13 px)?
-3. **`ShortcutSheet.qml`.** It gets the same token step (item 3), even though
-   the intent expected it to stay as it is. Is that acceptable?
-4. **Screenshots.** Should the #12 screenshots be retaken as the last step of
-   this plan, or as a separate issue?
+1. **Share and limits:** approved. 60% × 70% of the screen, floor
+   `Style.space(560)` × `Style.space(420)`, ceiling `Style.space(960)` ×
+   `Style.space(760)`.
+2. **Token step:** two steps up, not one, so the text is not smaller than
+   today (item 3 above; see the risk on how close base 12 gets).
+3. **`ShortcutSheet.qml`:** changes too.
+4. **Screenshots:** retaking `docs/img/01`–`09` and the tour is the last
+   step of the #16 plan.
