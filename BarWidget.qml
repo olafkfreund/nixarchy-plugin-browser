@@ -147,7 +147,7 @@ BarWidget {
         color: Color.popups.text; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true
       }
       Repeater {
-        model: root.updateAvailable ? root.updateInfo.notes.slice(0, 4) : []
+        model: root.updateAvailable && Array.isArray(root.updateInfo.notes) ? root.updateInfo.notes.slice(0, 4) : []
         delegate: Text {
           required property var modelData
           width: updateCol.width; wrapMode: Text.Wrap; textFormat: Text.PlainText

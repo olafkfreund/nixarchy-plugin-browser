@@ -52,9 +52,12 @@ FocusScope {
     root.cursor = 0
     BrowserState.ensureCatalog()
   }
+  // The panel closed. A confirmed install keeps running; nothing else does.
   function dismiss() {
     root.helpOpen = false
     root.confirmOpen = false
+    BrowserState.cancelAudit()
+    BrowserState.forgetPreview()
   }
   function focusForMode() {
     if (root.mode === "detail") detailKeys.forceActiveFocus()
@@ -67,7 +70,20 @@ FocusScope {
       var row = BrowserState.rowFor(p.id)
       // The catalog may still be loading: open with what we know about it.
       root.openDetails(row || { id: p.id, name: p.id, author: "", category: "", stars: 0, tags: [],
-                                badge: "unverified", description: "", repo: "", installAvailable: false })
+                                badge: "unverified", description: "", repo: "", installAvailable: false,
+                                stub: true })
+    }
+  }
+  // The catalog arrived while a stub was open: show the real row and its
+  // picture. The audit already runs on the id and is left alone.
+  Connections {
+    target: BrowserState
+    function onRowsChanged() {
+      if (!root.selected || root.selected.stub !== true) return
+      var row = BrowserState.rowFor(root.selected.id)
+      if (!row) return
+      root.selected = row
+      BrowserState.preview(row)
     }
   }
 
@@ -99,6 +115,7 @@ FocusScope {
     Qt.callLater(root.focusForMode)
   }
   function back() {
+    BrowserState.cancelAudit()
     root.mode = "list"
     root.confirmOpen = false
     Qt.callLater(root.focusForMode)
@@ -257,6 +274,8 @@ FocusScope {
 
       Keys.onPressed: function(event) {
         if (root.commonKey(event)) { event.accepted = true; return }
+        // Bare keys only: Ctrl+F is "find" in every other app, not "launch the fix agent".
+        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier | Qt.ShiftModifier)) return
         var id = root.selected ? root.selected.id : ""
         if (root.confirmOpen) {
           if (event.key === Qt.Key_Y) { root.confirmOpen = false; BrowserState.install(id) }
@@ -270,7 +289,7 @@ FocusScope {
           // e/f/o open a window of their own; this overlay would hide it and hold its keyboard.
           case Qt.Key_E: if (BrowserState.agent(id, "explain")) root.closeRequested(); break
           case Qt.Key_F: if (BrowserState.agent(id, "fix")) root.closeRequested(); break
-          case Qt.Key_I: if (!BrowserState.installing) root.confirmOpen = true; break
+          case Qt.Key_I: if (root.selected.installAvailable && !BrowserState.installing) root.confirmOpen = true; break
           case Qt.Key_C: if (BrowserState.copy(Model.installCommandFor(root.selected))) root.copiedFor = id; break
           case Qt.Key_O: if (BrowserState.openRepo(root.selected.repo)) root.closeRequested(); break
           case Qt.Key_J: case Qt.Key_Down: root.scrollReport(1); break
@@ -380,6 +399,16 @@ FocusScope {
             textFormat: Text.PlainText
             text: "Auditing in a sandbox… (clone, pin, scan)"
             color: Color.accent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
+          }
+          Text {
+            width: parent.width
+            visible: root.selected !== null && BrowserState.pendingAudit === root.selected.id
+            textFormat: Text.PlainText
+            wrapMode: Text.Wrap
+            text: "Queued: starts when the current audit stops"
+            color: root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.subtitle
           }

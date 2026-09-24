@@ -34,7 +34,7 @@ var SHORTCUTS = [
   { group: "Details", keys: "c", what: "copy the install command shown in the pane" },
   { group: "Details", keys: "o", what: "open the repository" },
   { group: "Details", keys: "j k", what: "scroll the report" },
-  { group: "Details", keys: "Esc  ←", what: "back to the list" },
+  { group: "Details", keys: "Esc  ←", what: "back to the list (stops a running audit)" },
   { group: "Anywhere", keys: "?", what: "this sheet" },
   { group: "Anywhere", keys: "Super+Alt+U", what: "open or close the browser" }
 ]
@@ -201,19 +201,21 @@ function reportLines(report) {
   function add(text, tone, indent) { out.push({ text: clean(text, 220), tone: tone || "", indent: indent || 0 }) }
   var sec = verdictLabel(report.outcome)
   add("Security: " + sec.text + (report.manifestValidate === "fail" ? " · manifest fails validation" : ""), sec.tone)
-  var finds = Array.isArray(report.findings) ? report.findings : []
+  // A report is data from a script; a null or a string in a list is skipped, not a crash.
+  function objects(list) { return Array.isArray(list) ? list.filter(function(x) { return x && typeof x === "object" }) : [] }
+  var finds = objects(report.findings)
   for (var i = 0; i < finds.length && i < 12; i++)
     add("● " + finds[i].id + "  " + finds[i].at + "  " + finds[i].evidence, "bad", 1)
   if (finds.length > 12) add("… " + (finds.length - 12) + " more findings", "dim", 1)
   var caps = {}
-  var capList = Array.isArray(report.capabilities) ? report.capabilities : []
+  var capList = objects(report.capabilities)
   for (var c = 0; c < capList.length; c++) caps[capList[c].id] = (caps[capList[c].id] || 0) + 1
   var capIds = Object.keys(caps).sort()
   if (capIds.length) add("Capabilities: " + capIds.map(function(k) { return k + " ×" + caps[k] }).join(", "), "warn", 1)
-  var nix = report.nixosCompatibility || {}
+  var nix = report.nixosCompatibility && typeof report.nixosCompatibility === "object" ? report.nixosCompatibility : {}
   var nl = nixLabel(nix.verdict)
   add(nl.text.charAt(0).toUpperCase() + nl.text.slice(1), nl.tone)
-  var nf = Array.isArray(nix.findings) ? nix.findings : []
+  var nf = objects(nix.findings)
   for (var n = 0; n < nf.length && n < 12; n++)
     add((nf[n].severity === "blocker" ? "✘ " : "◆ ") + nf[n].id + "  " + nf[n].at + "  " + nf[n].evidence,
         nf[n].severity === "blocker" ? "bad" : "warn", 1)

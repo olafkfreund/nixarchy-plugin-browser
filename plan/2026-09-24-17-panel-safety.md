@@ -231,3 +231,20 @@ without a caller that cancels. A leftover headless output is removed with
   Quickshell's source rather than a live `Process` (see Step notes).
 - **Commit 1 message** cites the plan step:
   `fix(panel): c copies a command built from the checked repo (plan steps 1-3, #17)`.
+- **Step 10, `manifest.json` untouched.** The version stays 0.5.1 (#16
+  already bumped it; lead: do not bump again). The #17 lines go under the
+  existing `## 0.5.1` in `CHANGELOG.md`.
+- **Step 7/8 qmllint.** The nixpkgs `qmllint` resolves neither QtQuick nor
+  Quickshell without the shell's import paths, so every file carries
+  hundreds of `[import]`/`[unqualified]` warnings on the base too. The check
+  used: zero `Error` lines on base and branch, and the only new warnings are
+  those same categories on the added `Text`/`Timer` items.
+
+## Step notes
+
+- **Step 6 (Quickshell kill semantics).** Answered from source, not a live
+  `Process`: Quickshell 0.3.1 (`/nix/store/…-quickshell-0.3.1`, the shell's
+  version), `src/io/process.cpp`:
+  `void Process::setRunning(bool running) { … else if (this->isRunning()) this->process->terminate(); }`.
+  `QProcess::terminate()` sends SIGTERM on Unix, so C1 uses
+  `auditProcess.running = false`; no `signal(15)` fallback.

@@ -35,8 +35,11 @@ Singleton {
     if (root.rows.length === 0 || Date.now() - root.loadedAt > root.staleAfterMs) loadCatalog(false)
   }
 
+  // A Ctrl+R during a plain load is kept and run once that load ends.
+  property bool pendingRefresh: false
+
   function loadCatalog(refresh) {
-    if (catalogProcess.running) return
+    if (catalogProcess.running) { if (refresh === true) root.pendingRefresh = true; return }
     root.loading = true
     root.catalogError = ""
     catalogProcess.command = Model.catalogArgv(root.pluginDir, refresh)
@@ -58,10 +61,11 @@ Singleton {
       var parsed = code === 0 ? Model.parseRows(catalogOut.text) : null
       if (!parsed) {
         root.catalogError = Model.lastLines(catalogErr.text, 1) || ("catalog failed (exit " + code + ")")
-        return
+      } else {
+        root.rows = parsed
+        root.loadedAt = Date.now()
       }
-      root.rows = parsed
-      root.loadedAt = Date.now()
+      if (root.pendingRefresh) { root.pendingRefresh = false; root.loadCatalog(true) }
     }
   }
 
@@ -74,15 +78,40 @@ Singleton {
   property string auditingFor: ""
   property string auditError: ""
   property string pendingAudit: ""
+  // Why the running audit is being stopped: "", "cancelled" or "timeout".
+  property string auditStop: ""
+  readonly property int auditTimeoutMs: 300000
 
   function audit(id) {
     if (!Model.isSafeId(id)) return
-    if (auditProcess.running) { root.pendingAudit = id; return }
+    if (auditProcess.running) {
+      if (id !== root.auditingFor) root.pendingAudit = id
+      return
+    }
     root.auditing = true
     root.auditingFor = id
     root.auditError = ""
     auditProcess.command = Model.auditArgv(root.pluginDir, id)
     auditProcess.running = true
+    auditTimer.restart()
+  }
+
+  // Esc, closing the panel: drop the queued audit and stop the running one.
+  function cancelAudit() {
+    root.pendingAudit = ""
+    if (auditProcess.running) stopAudit("cancelled")
+  }
+  // running = false is QProcess::terminate(), a SIGTERM (Quickshell 0.3.1).
+  // The audit's own trap (#15) stops its clone and removes the stage.
+  function stopAudit(why) {
+    root.auditStop = why
+    auditProcess.running = false
+  }
+
+  Timer {
+    id: auditTimer
+    interval: root.auditTimeoutMs
+    onTriggered: if (auditProcess.running) root.stopAudit("timeout")
   }
 
   Process {
@@ -91,11 +120,19 @@ Singleton {
     stdout: StdioCollector { id: auditOut; waitForEnd: true }
     stderr: StdioCollector { id: auditErr; waitForEnd: true }
     onExited: function(code) {
-      // 0 passed, 10 review-required, 20 needs-fixes: all are reports.
-      var r = (code === 0 || code === 10 || code === 20) ? Model.parseReport(auditOut.text) : null
+      auditTimer.stop()
       root.reportFor = root.auditingFor
-      root.report = r
-      root.auditError = r ? "" : (Model.lastLines(auditErr.text, 2) || ("audit failed (exit " + code + ")"))
+      if (root.auditStop !== "") {
+        root.report = null
+        root.auditError = root.auditStop === "timeout"
+          ? "The audit gave up after 5 minutes. Press a to try again." : "Audit cancelled."
+        root.auditStop = ""
+      } else {
+        // 0 passed, 10 review-required, 20 needs-fixes: all are reports.
+        var r = (code === 0 || code === 10 || code === 20) ? Model.parseReport(auditOut.text) : null
+        root.report = r
+        root.auditError = r ? "" : (Model.lastLines(auditErr.text, 2) || ("audit failed (exit " + code + ")"))
+      }
       root.auditing = false
       if (root.pendingAudit !== "") {
         var next = root.pendingAudit
@@ -127,6 +164,12 @@ Singleton {
     root.previewingFor = row.id
     previewProcess.command = argv
     previewProcess.running = true
+  }
+
+  // Closing the panel: a queued thumbnail is not fetched, a late one not shown.
+  function forgetPreview() {
+    root.pendingPreview = null
+    root.previewFor = ""
   }
 
   Process {

@@ -56,6 +56,13 @@ assert.equal(lines[1].text, "Capabilities: installer \u00D71, privilege \u00D72"
 assert.equal(lines[2].tone, "bad")
 assert.ok(lines[3].text.startsWith("\u2718 fhs-path  W.qml:2  x y"), "blocker line, control char cleaned")
 assert.deepEqual(j(M.reportLines(null)), [])
+// a malformed report never throws; only real entries are drawn (#17)
+const odd = j(M.reportLines({ outcome: "passed", findings: [null, { id: "x", at: "f:1", evidence: "e" }],
+  capabilities: [null], nixosCompatibility: { findings: [null] } }))
+assert.equal(odd.filter(l => l.text.startsWith("● ")).length, 1, "one finding line")
+assert.ok(!odd.some(l => l.text.startsWith("Capabilities")), "a null capability is not counted")
+assert.doesNotThrow(() => M.reportLines({ outcome: "passed", nixosCompatibility: "oops" }))
+assert.equal(M.SHORTCUTS.find(s => s.keys === "Esc  ←").what, "back to the list (stops a running audit)")
 
 // previews: same allowlist as catalog.sh
 const good = "assets/img/plugins/5-crmne-omarchy-hyprmoncfg-card.webp"

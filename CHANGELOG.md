@@ -20,6 +20,9 @@ when an update is available. Keep one short line per bullet.
 - The terminal browser copies an install command built from the plugin's GitHub repo
 - The panel is a share of your screen and uses your theme's font sizes, so it fits laptops and 4K alike (#16)
 - Text is drawn at its real size, no longer scaled up, so it is as sharp as the bar
+- c copies "omarchy plugin add <repo>", built from the checked GitHub URL and shown in the pane first (#17)
+- Detail keys act only without Ctrl, Alt, Super or Shift, so Ctrl+F no longer starts the fix agent
+- Esc or closing the panel stops the running audit; an audit gives up after 5 minutes (needs #15)
 
 ## 0.5.0
 
