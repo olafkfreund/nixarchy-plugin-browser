@@ -11,6 +11,19 @@ closes the panel); the owner runs the four variants once at the desktop; a
 temporary debug build logs `activeFocusItem` and `mode` to the journal for the
 agent to read afterwards; no fix unless it reproduces.
 
+Decided at spec review (olafkfreund):
+
+- **One short plan** covers: the debug commit on the local branch
+  `debug/28-esc-focus-log` (never pushed, never merged), the owner's manual
+  run of the four variants (the plan lists the owner's exact commands,
+  including saving and restoring the plugin symlink and the journal markers),
+  the agent's journal read-back, the decision tree, and cleanup (delete the
+  debug branch, restore the symlink). Agents never drive the live desktop.
+- **Variants (c) and (d):** if Hyprland never gives the new window the
+  keyboard (the panel's `WlrKeyboardFocus.Exclusive` on the Overlay layer),
+  that is a valid "does not reproduce" for that variant, evidenced by the
+  `pb28 active` lines (no `active false` while the panel is up).
+
 This spec designs the reproduction, not a fix. The plan that follows it
 covers the debug commit, the owner's run and the read-back; the debug commit
 waits for that plan's approval like any other edit. If it reproduces, the fix
@@ -124,7 +137,9 @@ posts that excerpt on #28 with the owner's lines.
 ### 5. Decision tree
 
 - **No variant reproduces** (every Esc in the details went to the list; the
-  only closes are from the list with an empty search, or a click away):
+  only closes are from the list with an empty search, or a click away; a (c)
+  or (d) whose new window never got the keyboard, shown by no
+  `pb28 active false` while the panel was up, counts as not reproducing):
   close #28 as "not reproducible on `4d3035a` and later", with the owner's
   lines and the journal excerpt. On `fix/28-esc-after-open`, update the
   "Open" item in `plan/2026-09-22-4-qml-panel.md:274-276` to point to that
@@ -165,7 +180,8 @@ posts that excerpt on #28 with the owner's lines.
   the Overlay layer, Hyprland may keep the keyboard on the panel, so the new
   window never takes it. That is a finding in itself (the "outside window
   takes the keyboard" premise does not hold while the panel is up), recorded
-  from the `pb28 active` lines.
+  from the `pb28 active` lines, and counts as "does not reproduce" for that
+  variant (decided at spec review).
 - **Debug lines ship by mistake.** The branch is never pushed; the review of
   anything on `fix/28` checks `git grep pb28` is empty.
 - **Host:** p620 (the owner's desktop session). No Nix or system change.
