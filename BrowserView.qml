@@ -16,9 +16,6 @@ FocusScope {
   property string fontFamily: Style.font.family
   readonly property color dim: Color.muted
 
-  implicitWidth: Style.space(680)
-  implicitHeight: Style.space(520)
-
   signal closeRequested()
 
   // ------------------------------------------------------------------ state
@@ -135,7 +132,7 @@ FocusScope {
         text: Model.Glyph.plugin + "  Plugin Browser"
         color: root.foreground
         font.family: root.fontFamily
-        font.pixelSize: Style.font.body
+        font.pixelSize: Style.font.heading
         font.bold: true
       }
       Text {
@@ -147,7 +144,7 @@ FocusScope {
               : root.visibleRows.length + " of " + BrowserState.rows.length + " plugins   ? keys"
         color: BrowserState.catalogError !== "" ? Color.urgent : root.dim
         font.family: root.fontFamily
-        font.pixelSize: Style.font.caption
+        font.pixelSize: Style.font.subtitle
         elide: Text.ElideLeft
         width: parent.width - title.implicitWidth - Style.spacing.lg
         horizontalAlignment: Text.AlignRight
@@ -169,7 +166,7 @@ FocusScope {
         color: root.foreground
         selectionColor: Color.accent
         font.family: root.fontFamily
-        font.pixelSize: Style.font.body
+        font.pixelSize: Style.font.title
         clip: true
         onTextChanged: { root.query = text; filterDelay.restart() }
 
@@ -230,7 +227,7 @@ FocusScope {
                 + (rowItem.modelData.category ? "   " + rowItem.modelData.category : "")
           color: rowItem.index === root.cursor ? Color.menu.selectedText : root.foreground
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.subtitle
         }
         Text {
           id: stars
@@ -241,7 +238,7 @@ FocusScope {
           text: Model.Glyph.star + " " + rowItem.modelData.stars
           color: root.dim
           font.family: root.fontFamily
-          font.pixelSize: Style.font.caption
+          font.pixelSize: Style.font.subtitle
         }
         MouseArea {
           anchors.fill: parent
@@ -323,7 +320,7 @@ FocusScope {
             text: root.selected ? Model.badgeGlyph(root.selected.badge) + "  " + root.selected.name : ""
             color: root.foreground
             font.family: root.fontFamily
-            font.pixelSize: Style.font.body
+            font.pixelSize: Style.font.heading
             font.bold: true
           }
           Text {
@@ -335,7 +332,7 @@ FocusScope {
                                   .filter(function(s) { return s !== "" }).join("   ·   ") : ""
             color: root.dim
             font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            font.pixelSize: Style.font.subtitle
           }
           Text {
             width: parent.width
@@ -345,7 +342,7 @@ FocusScope {
             text: root.selected ? root.selected.description : ""
             color: root.foreground
             font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            font.pixelSize: Style.font.subtitle
           }
           Text {
             width: parent.width
@@ -355,7 +352,7 @@ FocusScope {
             text: root.selected && root.selected.repo ? root.selected.repo : ""
             color: root.dim
             font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            font.pixelSize: Style.font.subtitle
           }
 
           Rectangle { width: parent.width; height: Math.max(1, Style.space(1)); color: root.dim; opacity: 0.4 }
@@ -367,7 +364,7 @@ FocusScope {
             text: "Auditing in a sandbox… (clone, pin, scan)"
             color: Color.accent
             font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            font.pixelSize: Style.font.subtitle
           }
           Text {
             width: parent.width
@@ -377,7 +374,7 @@ FocusScope {
             text: BrowserState.auditError
             color: Color.urgent
             font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            font.pixelSize: Style.font.subtitle
           }
           Repeater {
             model: root.reportLines
@@ -392,7 +389,7 @@ FocusScope {
                      : modelData.tone === "warn" ? Color.accent
                      : modelData.tone === "dim" ? root.dim : root.foreground
               font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
+              font.pixelSize: Style.font.subtitle
               font.bold: modelData.indent === 0 && modelData.tone !== "dim"
             }
           }
@@ -405,7 +402,7 @@ FocusScope {
                   ? (BrowserState.installing ? "Installing (disabled)…" : BrowserState.installOutput) : ""
             color: root.foreground
             font.family: root.fontFamily
-            font.pixelSize: Style.font.caption
+            font.pixelSize: Style.font.subtitle
           }
         }
       }
@@ -424,7 +421,7 @@ FocusScope {
               : "↑↓ move   Enter details   Ctrl+R refresh   Esc close   ? keys"
       color: root.confirmOpen ? Color.accent : root.dim
       font.family: root.fontFamily
-      font.pixelSize: Style.font.caption
+      font.pixelSize: Style.font.subtitle
     }
   }
 
