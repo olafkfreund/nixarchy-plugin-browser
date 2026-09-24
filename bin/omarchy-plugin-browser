@@ -49,28 +49,14 @@ fetch() {
   exit 3
 }
 
-# The raw entry, with control characters as spaces in every string it prints.
-entry_by_id() {
-  jq -c --arg id "$1" 'first(.plugins[] | objects | select(.id == $id))
-    | walk(if type == "string" then gsub("[[:cntrl:]]"; " ") else . end)' "$CATALOG"
-}
-
 show_detail() {  # $1 = id
-  local e; e=$(entry_by_id "$1"); [[ -n $e ]] || return
   local name author repo cat stars vstat vcov vcommit upstream install avail note ver tags desc v
-  # One jq for every field, NUL-separated (jq 1.7+): a field may be empty or,
-  # for a non-string value, span lines, and NUL is the one byte no field holds
-  # (entry_by_id turned control characters into spaces).
+  # One jq for every field, NUL-separated (jq 1.7+): a field may be empty, and
+  # catalog_detail passes every field through _s, so no field holds a NUL or a
+  # control character. An unknown id gives no output: the first read fails.
   for v in name author repo cat stars ver vstat vcov vcommit upstream install avail note desc tags; do
-    IFS= read -r -d '' "$v"
-  done < <(jq --raw-output0 "$CATALOG_ROWS_JQ"'
-    .name//.id, .author//"?", .repo//"", .category//"?", .stars//0, .version//"?",
-    .verificationStatus//"unverified", .verificationCoverage//"none",
-    .verificationCommit//.listingValidatedCommit//"", .upstreamObservedCommit//"",
-    install_command,   # built from the checked repo
-    .installAvailable//false, .installNote//"", .description//"",
-    ((.tags | if type == "array" then map(strings) else [] end) as $t
-     | if ($t | length) > 0 then "#" + ($t | join("  #")) else "" end)' <<<"$e")
+    IFS= read -r -d '' "$v" || return
+  done < <(catalog_detail "$1")
 
   local vline
   case "$vstat/$vcov" in
