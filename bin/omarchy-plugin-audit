@@ -384,6 +384,23 @@ while IFS= read -r -d '' l; do
 done < <(find "$CHECKOUT" -path "$CHECKOUT/.git" -prune -o -type l -print0)
 SYMLINKS=$(sort -u <<<"$SYMLINKS" | sed '/^$/d')
 
+# A local --install installs HEAD, but the scan read the folder as it sits on
+# disk: the two must be the same tree. HEAD is cloned (file protocol only,
+# bounded) and compared with the scanned copy. Nothing runs a worktree command
+# in the user's repo, whose core.fsmonitor could name a program. A tree with
+# symlinks is refused at install anyway, so it is not compared here.
+if (( DO_INSTALL && IS_LOCAL )) && [[ -n $REPO_URL && -z $SYMLINKS && $SCAN_COMMIT =~ ^[0-9a-f]{40}$ ]]; then
+  clone_hardened "$LOCAL_DIR" "$STAGE/head" file
+  _bound_run "checkout" "$STAGE/head" -- \
+    git -C "$STAGE/head" -c advice.detachedHead=false checkout --quiet "$SCAN_COMMIT"
+  dirty=$(diff -rq --no-dereference -x .git -- "$CHECKOUT" "$STAGE/head" 2>&1)
+  if [[ -n $dirty ]]; then
+    first=$(head -n1 <<<"$dirty")
+    first=${first//"$CHECKOUT"/.}; first=${first//"$STAGE/head"/.}
+    die "the working tree differs from HEAD ($(wc -l <<<"$dirty") paths, e.g. $(clean "$first")); commit or stash, then re-run" 2
+  fi
+fi
+
 # ------------------------------------------------------------------- run scan
 RAW="$STAGE/scan.out"
 run_sandboxed() {
@@ -636,7 +653,9 @@ if (( DO_INSTALL )); then
     [[ -n $APPLY_PATCH ]] && install_branch=nixarchy-local   # ff-only updates stop here
     add_src="$STAGE/install-src"
     GIT_ALLOW_PROTOCOL=file git -c core.symlinks=false -c advice.detachedHead=false clone --quiet --config core.symlinks=false "$CHECKOUT" "$add_src" 2>/dev/null || cp -a "$CHECKOUT" "$add_src"
-    git -C "$add_src" -c advice.detachedHead=false checkout -B "$install_branch" "$SCAN_COMMIT" --quiet 2>/dev/null || true
+    git -C "$add_src" -c advice.detachedHead=false checkout -B "$install_branch" "$SCAN_COMMIT" --quiet 2>/dev/null \
+      && [[ $(git -C "$add_src" rev-parse HEAD 2>/dev/null) == "$SCAN_COMMIT" ]] \
+      || die "could not check out the audited commit ${SCAN_COMMIT:0:12} for install" 3
     [[ -n $REPO_URL ]] && git -C "$add_src" remote set-url origin "$REPO_URL" 2>/dev/null || true
     say "  Installing the audited checkout (${SCAN_COMMIT:0:12}) — DISABLED, per Omarchy's review-first flow…"
     omarchy plugin add "$add_src" --yes; add_rc=$?

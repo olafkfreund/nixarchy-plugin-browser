@@ -342,3 +342,11 @@ installed plugin is unaffected by a rollback; the audit only reads it.
   now listed too. Tests that can reach `omarchy plugin add` also set
   `XDG_RUNTIME_DIR` to a temp dir, so its `rescanPlugins` call cannot reach the
   live shell.
+- **Step 5 (item 3).** The HEAD comparison runs just after the symlink pass,
+  not right after `copy_hardened`, and only when no symlink was found: a
+  committed link is a plain file in the `core.symlinks=false` clone but a real
+  link in the copy, so comparing first would refuse it as "differs from HEAD"
+  instead of with the symlink refusal that already blocks that install. It is
+  still before the scan. The test's `git rm --cached` case commits the removal:
+  uncommitted, HEAD and the tree still hold the same file, so the install is
+  exactly what was scanned and there is nothing to refuse.
