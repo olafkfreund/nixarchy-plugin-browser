@@ -31,8 +31,6 @@
 #   --json          Emit a machine-readable JSON report instead of text.
 #   --no-sandbox    Scan without bwrap (only if bwrap is unavailable). Louder,
 #                   less safe; the scanner still never executes plugin code.
-#   --pause         Wait for a keypress before exiting (used when launched in a
-#                   terminal that would otherwise close).
 #
 # Internal (used by nixarchy-plugin-fix):
 #   --export-tree <dir>   Copy the scanned tree (no .git, writable) to <dir>,
@@ -66,25 +64,23 @@ clean(){ local s=${1//[[:cntrl:]]/ }; printf '%s' "$s"; }
 OMARCHY_BIN="${OMARCHY_BIN:-/run/current-system/sw/bin}"
 SELF_DIR="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")" && pwd)"
 SCANNER="$SELF_DIR/../lib/omarchy-plugin-scan.sh"
-[[ -f $SCANNER ]] || SCANNER="$SELF_DIR/omarchy-plugin-scan.sh"
-[[ -f $SCANNER ]] || die "scanner not found next to this script" 3
+[[ -f $SCANNER ]] || die "scanner not found in ../lib" 3
 
 CATALOG_LIB="$SELF_DIR/../lib/catalog.sh"
-[[ -f $CATALOG_LIB ]] || CATALOG_LIB="$SELF_DIR/catalog.sh"
 # shellcheck source=../lib/catalog.sh
-source "$CATALOG_LIB" || die "catalog.sh not found next to this script" 3
+source "$CATALOG_LIB" || die "catalog.sh not found in ../lib" 3
 
-# Bounds enforced on the staging clone/copy below, BEFORE the sandbox starts
-# (HANCORE-linux's marketplace review, #5581 v2): a hostile or malfunctioning
-# audit target must not be able to keep git cloning forever or blow up local
-# disk before run_sandboxed() ever runs. Overridable for tests.
+# Staging is bounded in time, bytes and file count before the sandbox starts,
+# so a hostile or malfunctioning target cannot keep git cloning forever or
+# fill the disk before run_sandboxed() ever runs. Overridable for tests.
+# (From HANCORE-linux's marketplace review, #5581 v2.)
 AUDIT_STAGE_DEADLINE_SEC="${AUDIT_STAGE_DEADLINE_SEC:-120}"
 AUDIT_STAGE_MAX_BYTES="${AUDIT_STAGE_MAX_BYTES:-$((300 * 1024 * 1024))}"
 AUDIT_STAGE_MAX_FILES="${AUDIT_STAGE_MAX_FILES:-20000}"
 
 # ------------------------------------------------------------------- arg parse
 TARGET=""; MODE_HEAD=0; PIN_COMMIT=""; DO_INSTALL=0; AS_JSON=0; EXPORT_TREE=""; APPLY_PATCH=""
-USE_SANDBOX=1; PAUSE=0
+USE_SANDBOX=1
 while (( $# )); do
   case "$1" in
     --head) MODE_HEAD=1; shift ;;
@@ -92,7 +88,6 @@ while (( $# )); do
     --install) DO_INSTALL=1; shift ;;
     --json) AS_JSON=1; shift ;;
     --no-sandbox) USE_SANDBOX=0; shift ;;
-    --pause) PAUSE=1; shift ;;
     --export-tree) EXPORT_TREE="${2:-}"; shift 2 || die "--export-tree needs a dir" ;;
     --apply-patch) APPLY_PATCH="${2:-}"; shift 2 || die "--apply-patch needs a file" ;;
     -h|--help) sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; s/^#$//; /^set -uo/d'; exit 0 ;;
@@ -113,7 +108,7 @@ if [[ -n $APPLY_PATCH ]]; then
   APPLY_PATCH=$(readlink -f -- "$APPLY_PATCH")
 fi
 
-finish() { (( PAUSE )) && { printf '\n%sPress Enter to close…%s' "$DIM" "$RST"; read -r _ || true; }; exit "$1"; }
+finish() { exit "$1"; }
 
 for t in git jq find file grep du timeout setsid stat; do command -v "$t" >/dev/null || die "missing required tool: $t" 3; done
 # Fail closed: an audit that silently drops its sandbox is worse than none.
@@ -221,15 +216,13 @@ _on_signal() { [[ -n ${BOUND_PID:-} ]] && _kill_group "$BOUND_PID"; exit "$1"; }
 trap '_on_signal 143' TERM; trap '_on_signal 130' INT; trap '_on_signal 129' HUP
 CHECKOUT="$STAGE/tree"
 
-# HANCORE-linux's marketplace review (#5581 v2): bin/omarchy-plugin-audit's
-# git clone and local cp -a both ran with no total deadline and no aggregate
-# byte/file-count ceiling, entirely BEFORE run_sandboxed() starts. A hostile
-# or malfunctioning audit target could therefore keep this alive indefinitely
-# or exhaust the user's disk before isolation ever begins. Every path that
-# stages the target tree now goes through _bound_run: a hard wall-clock
-# deadline with whole-process-group termination, live size/file-count
-# ceilings enforced while the transfer is streaming, and cleanup that is
-# itself bounded (a fixed grace period, then SIGKILL, then rm -rf).
+# Every path that stages the target tree goes through _bound_run, so the
+# git clone and the local cp -a, which run BEFORE run_sandboxed() starts,
+# cannot run forever or exhaust the disk before isolation begins: a hard
+# wall-clock deadline with whole-process-group termination, live
+# size/file-count ceilings enforced while the transfer is streaming, and
+# cleanup that is itself bounded (a fixed grace period, then SIGKILL, then
+# rm -rf). (From HANCORE-linux's marketplace review, #5581 v2.)
 _dir_bytes() { du -sb -- "$1" 2>/dev/null | cut -f1; }
 _dir_files() { find "$1" -type f 2>/dev/null | wc -l; }
 
@@ -339,12 +332,11 @@ else
   elif (( MODE_HEAD )); then SCAN_COMMIT="origin/$DEFAULT_BRANCH"
   elif [[ -n $VERIFIED_COMMIT ]]; then SCAN_COMMIT="$VERIFIED_COMMIT"
   else SCAN_COMMIT="origin/$DEFAULT_BRANCH"; fi
-  # HANCORE-linux's follow-up review (#5581 v3): the clone above is
-  # --no-checkout (fast, no working tree), but this checkout is what
-  # actually expands the selected tree into $CHECKOUT — a small compressed
-  # object database can still explode into a much larger working tree here,
-  # and it ran with none of _bound_run's deadline or live size/file-count
-  # ceilings. _bound_run calls die() itself on any failure (bound-exceeded
+  # The checkout is bounded too: the clone above is --no-checkout (fast, no
+  # working tree), but this checkout is what actually expands the selected
+  # tree into $CHECKOUT, and a small compressed object database can still
+  # explode into a much larger working tree here. (From HANCORE-linux's
+  # follow-up review, #5581 v3.) _bound_run calls die() itself on any failure (bound-exceeded
   # or a genuine git error alike), so the two-attempt retry (with/without
   # a trailing `--`, for different SCAN_COMMIT ref forms) has to live
   # INSIDE one bounded call, not chained across two _bound_run calls where
@@ -456,8 +448,8 @@ tr -d '\000-\010\013-\037\177' <"$RAW" >"$RAW.clean" && mv -f -- "$RAW.clean" "$
 # completion STAT. Anything else is a forged or truncated record stream.
 [[ $(grep -c $'^VALIDATE\t' "$RAW") == 1 && $(tail -n1 "$RAW") == $'STAT\tscan\tcomplete' ]] \
   || die "scanner output is malformed" 3
-n_find=$(grep -c $'^FIND\t' "$RAW" 2>/dev/null || echo 0); n_find=${n_find//[!0-9]/}; n_find=${n_find:-0}
-n_cap=$(grep -c $'^CAP\t'  "$RAW" 2>/dev/null || echo 0);  n_cap=${n_cap//[!0-9]/};  n_cap=${n_cap:-0}
+n_find=$(grep -c $'^FIND\t' "$RAW" 2>/dev/null) || :; n_find=${n_find:-0}
+n_cap=$(grep -c $'^CAP\t' "$RAW" 2>/dev/null) || :; n_cap=${n_cap:-0}
 VALIDATE=$(grep $'^VALIDATE\t' "$RAW")
 V_RES=$(cut -f2 <<<"$VALIDATE"); V_MSG=$(cut -f3 <<<"$VALIDATE")
 
@@ -637,7 +629,7 @@ if [[ -n $SYMLINKS ]]; then
 fi
 
 # informational, folded
-n_info=$(grep -c $'^INFO\t' "$RAW" 2>/dev/null || echo 0); n_info=${n_info//[!0-9]/}
+n_info=$(grep -c $'^INFO\t' "$RAW" 2>/dev/null) || :; n_info=${n_info:-0}
 if (( ${n_info:-0} > 0 )); then
   head2 "Context  ${DIM}(informational)${RST}"
   while IFS=$'\t' read -r id cnt; do

@@ -264,3 +264,11 @@ Run before and after each phase; all must pass:
   and #16 (PR #25) already set 0.5.1. This PR adds the `## 0.5.1` CHANGELOG
   section only; the sections merge when the PRs rebase. The 0.5.1 release is
   whichever of these PRs merges last with the bump in place.
+- **Phase B, lead decision.** Phase B was started on top of the stack
+  (#19, #15, #18, #16, #17 and phase A: PRs #24, #27, #23, #25, #31, #30)
+  before it merged; the stack has since merged to `master` by fast-forward
+  (`f13dd0c`), so phase B is built on the merged stack and ships as its own
+  draft PR against `master`. Each B step re-locates its lines on that tree
+  instead of starting with `git pull`. The approved
+  decisions stand: STAT and `stat()` kept, the shared `lib/update.sh` code
+  kept, HANCORE comments reworded, no behaviour change.
