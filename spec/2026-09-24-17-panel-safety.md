@@ -16,9 +16,9 @@ Approved decisions this spec builds on (intent approval, `b495a8d`):
 5. #17 rebases on #16 when it is implemented.
 
 Line numbers are on `master` at `449636c`. After the rebase on #16, the
-`font.pixelSize` lines in `BrowserView.qml` change token (`caption` becomes
-`body`), and any new `Text` below uses whatever token #16 gives the detail
-text.
+`font.pixelSize` lines in `BrowserView.qml` change token (#16's approved
+two steps: `caption` becomes `subtitle`), and every new `Text` below uses
+`subtitle`, the token #16 gives the detail text.
 
 ## Design
 
@@ -93,7 +93,9 @@ if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier | Q
 ```
 
 The guard comes after `commonKey`, so `?` (Shift+/, matched on
-`event.text`) still opens the sheet. The guard also covers the y/n
+`event.text`) still opens the sheet. `?` is the only detail key that
+accepts Shift; every other detail key needs no modifier at all (approver,
+question 4). The guard also covers the y/n
 confirmation, so Ctrl+Y does not install. The event is not accepted, so it
 propagates as it does today for keys the handler does not know. The list
 keys (the search field's Ctrl+J, Ctrl+K and Ctrl+R) are not affected.
@@ -103,7 +105,7 @@ keys (the search field's Ctrl+J, Ctrl+K and Ctrl+R) are not affected.
 **C1. Audit timeout and cancel (`BrowserState.qml:68-106`).**
 
 - New `property string auditStop: ""` (`""`, `"cancelled"` or `"timeout"`),
-  and `readonly property int auditTimeoutMs: 300000` (5 min).
+  and `readonly property int auditTimeoutMs: 300000` (5 min, approved).
 - `Timer { id: auditTimer; interval: root.auditTimeoutMs; onTriggered: root.stopAudit("timeout") }`,
   restarted in `audit()` when a process starts, and stopped in `onExited`.
 - `function cancelAudit()` clears `pendingAudit`, then calls
@@ -122,20 +124,19 @@ keys (the search field's Ctrl+J, Ctrl+K and Ctrl+R) are not affected.
   running, so pressing `a` twice does not queue a duplicate.
 - `back()` (`BrowserView.qml:101`) calls `BrowserState.cancelAudit()`.
 
-**C2. The audit script stops its child on SIGTERM
-(`bin/omarchy-plugin-audit`).** This was checked on this machine: a bash
-script killed with SIGTERM runs its `EXIT` trap, so the `$STAGE` cleanup at
-`:182` happens. But the `setsid` child of `_bound_run` (`:206`), the `git clone`, keeps
-running with no watchdog. `_bound_run` stores its child in a global
-`BOUND_PID`, and a trap after `:182` kills that child's process group:
+**C2. The audit script stops its child on SIGTERM: moved to #15**
+(approver, question 2). A bash script killed with SIGTERM runs its `EXIT`
+trap, so the `$STAGE` cleanup happens, but the `setsid` child of
+`_bound_run` (the `git clone`) keeps running with no watchdog. The trap that
+kills that child's process group is item 9 of
+`spec/2026-09-24-15-audit-hardening.md` (approved), not part of this work.
+This work does not change `bin/omarchy-plugin-audit`.
 
-```bash
-trap '[[ -n ${BOUND_PID:-} ]] && kill -TERM "-$BOUND_PID" 2>/dev/null; exit 143' TERM INT HUP
-```
-
-The exit code and the JSON contract do not change for a normal run. The
-intent allows this change ("only called differently if cancel or timeout
-needs it").
+**#17 depends on #15 for real cancellation.** The QML side still sets
+`auditProcess.running = false` (C1), and the panel shows "Audit cancelled."
+and frees the slot when the process exits, with or without #15. Without
+#15 the clone it started runs on to its own 120 s stage deadline. The
+exit code is not read: the panel uses its own `auditStop` flag.
 
 **C3. A queued audit is visible.** A new `Text` goes next to "Auditing in a
 sandbox…" (`BrowserView.qml:363-371`). It is visible when
@@ -212,22 +213,25 @@ The key letters stay the same.
   user already said `y`.
 - **Rely on the script's own 120 s stage deadlines, with no QML timeout.** A
   hang outside `_bound_run` (the scanner, `jq`) is not covered by them.
-- **A QML-only cancel, without C2.** This was checked: the `setsid` clone
-  outlives its parent and runs with no deadline.
+- **A QML-only cancel, with no script change anywhere.** This was
+  checked: the `setsid` clone outlives its parent and runs with no deadline.
+  The script change lives in #15 (item 9) instead.
+- **The trap in this PR.** #15 already edits that script's trap area; one
+  owner avoids two traps. Approver, question 2.
 
 ## Risks
 
-- **#15 edits the same script.** `fix/15-audit-hardening` changes
-  `bin/omarchy-plugin-audit`. C2 is small, about four lines around
-  `_bound_run` and the trap. Whichever branch lands second rebases. C2 could
-  move to #15 instead. See approver question 2.
+- **Dependency on #15.** Real cancellation (the clone stops) needs #15's
+  item 9. If #17 merges first, Esc and close still stop the audit script
+  and free the queue slot, but its `git clone` child runs to its stage
+  deadline. The runtime check for a stopped clone runs only once #15 is in.
 - **Quickshell kill semantics.** The spec assumes `running = false` sends
   SIGTERM. The plan checks this first, and `signal(15)` is the fallback.
   This affects every host.
 - **The trap runs after a sleep.** Bash handles a TERM trap only after its
   current foreground command ends: the `sleep 0.5` in the `_bound_run` loop,
   or a `timeout`-bounded `du`/`find` (up to 120 s at `:265-266`). A cancel
-  during the `local dir` measurement can take that long. The panel shows
+  during the `local dir` measurement can take that long (with #15's trap). The panel shows
   "Audit cancelled." only once the process exits. A new audit waits in the
   queue until then, and C3 shows that it is queued.
 - **Rebase on #16.** Both change the `font.pixelSize` lines and the detail
@@ -240,8 +244,10 @@ The key letters stay the same.
   reads `installCommand`.
 - **Docs.** `docs/manual/the-panel.md:44` and `installing.md:40` describe `c`
   ("copy the install command"). They need one sentence about the pane
-  line. Screenshot `03-details-preview.webp` will gain the line. Retaking it
-  is shared with #16's screenshot retake.
+  line. Screenshot `03-details-preview.webp` will gain the line. #16 retakes
+  the screenshots as its last step, before this work lands, so this work
+  retakes `03-details-preview.webp` again as its own last step. The tour's
+  detail frames will not show the line; they are not retaken for it.
 
 ## Verification
 
@@ -262,17 +268,16 @@ The key letters stay the same.
   - `parseRows` output has no `installCommand` key.
 
   Run `nix run nixpkgs#nodejs -- tests/model-check.mjs`. It prints `ok`.
-- **Script check (C2).** Run `bin/omarchy-plugin-audit <slow id> --json &`,
-  send it `kill -TERM` during the clone, then check with
-  `pgrep -f "git clone"` that nothing is left and that the stage directory
-  is gone.
+- **Script check (C2)** belongs to #15's verification. Here, once #15 is
+  in, the panel's cancel leaves no `git clone` behind (`pgrep -f "git clone"`).
 - **Manual runtime check in the panel:**
   - The details show `c copies: omarchy plugin add …`. After `c`,
     `wl-paste` prints exactly that one line, and the pane says `Copied`.
   - A plugin with `installAvailable:false` shows "Nothing to copy", and
     neither `c` nor `i` does anything.
-  - Ctrl+F, Alt+E, Shift+O and Ctrl+Y in the details do nothing. `?` still
-    opens the key sheet.
+  - Ctrl+F, Alt+E, Shift+O, Shift+Esc and Ctrl+Y in the details do
+    nothing. `?` (Shift+/) still opens the key sheet: it is the only detail
+    key that accepts a modifier.
   - Open a plugin (the audit starts), press Esc, and check the audit process
     is gone (`pgrep -f omarchy-plugin-audit`). Enter on another plugin shows
     "Queued…" until the first one exits, then "Auditing…".
@@ -289,17 +294,15 @@ The key letters stay the same.
   opens and shows no bullet list.
 - CI wiring belongs to #19.
 
-## Questions for the approver
+## Approver decisions (olafkfreund, 2026-09-24)
 
-1. **Order of landing.** Should Part A be its own PR that merges before the
-   rest, or the first commit of one #17 PR? The spec assumes the first
-   commit, and the plan can split it off.
-2. **C2's home.** The SIGTERM trap in `bin/omarchy-plugin-audit` is needed
-   for cancel to work. Does it belong here, or should it be added to #15,
-   which already edits that script?
-3. **Timeout.** Is 5 minutes right? The script's stages each have 120 s, so
-   a slow clone followed by a slow checkout can pass 4 minutes before the
-   script gives up on its own.
-4. **Shift.** The spec treats Shift+letter as "not bare", so Shift+O does
-   nothing, as the intent's example says. Is there any detail key that
-   should accept Shift?
+1. **Order of landing:** Part A (the clipboard fix) is the first commit of
+   the same #17 PR, not its own PR.
+2. **C2's home:** the SIGTERM trap in `bin/omarchy-plugin-audit` moves to
+   #15 (its item 9). #17 depends on #15 for real cancellation. The QML side
+   still sets `running = false`.
+3. **Timeout:** 5 minutes, approved.
+4. **Shift:** only `?` accepts Shift. Every other detail key requires no
+   modifiers.
+5. **Rebase:** #17 rebases on #16 at implementation time (from the intent
+   approval).
