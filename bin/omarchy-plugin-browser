@@ -57,20 +57,20 @@ entry_by_id() {
 
 show_detail() {  # $1 = id
   local e; e=$(entry_by_id "$1"); [[ -n $e ]] || return
-  local name author repo cat stars vstat vcov vcommit upstream install avail note ver tags desc
-  name=$(jq -r '.name//.id' <<<"$e");      author=$(jq -r '.author//"?"' <<<"$e")
-  repo=$(jq -r '.repo//""' <<<"$e");       cat=$(jq -r '.category//"?"' <<<"$e")
-  stars=$(jq -r '.stars//0' <<<"$e");      ver=$(jq -r '.version//"?"' <<<"$e")
-  vstat=$(jq -r '.verificationStatus//"unverified"' <<<"$e")
-  vcov=$(jq -r '.verificationCoverage//"none"' <<<"$e")
-  vcommit=$(jq -r '.verificationCommit//.listingValidatedCommit//""' <<<"$e")
-  upstream=$(jq -r '.upstreamObservedCommit//""' <<<"$e")
-  install=$(jq -r "$CATALOG_ROWS_JQ install_command" <<<"$e")   # built from the checked repo
-  avail=$(jq -r '.installAvailable//false' <<<"$e")
-  note=$(jq -r '.installNote//""' <<<"$e")
-  desc=$(jq -r '.description//""' <<<"$e")
-  tags=$(jq -r '(.tags | if type == "array" then map(strings) else [] end) as $t
-                | if ($t | length) > 0 then "#" + ($t | join("  #")) else "" end' <<<"$e")
+  local name author repo cat stars vstat vcov vcommit upstream install avail note ver tags desc v
+  # One jq for every field, NUL-separated (jq 1.7+): a field may be empty or,
+  # for a non-string value, span lines, and NUL is the one byte no field holds
+  # (entry_by_id turned control characters into spaces).
+  for v in name author repo cat stars ver vstat vcov vcommit upstream install avail note desc tags; do
+    IFS= read -r -d '' "$v"
+  done < <(jq --raw-output0 "$CATALOG_ROWS_JQ"'
+    .name//.id, .author//"?", .repo//"", .category//"?", .stars//0, .version//"?",
+    .verificationStatus//"unverified", .verificationCoverage//"none",
+    .verificationCommit//.listingValidatedCommit//"", .upstreamObservedCommit//"",
+    install_command,   # built from the checked repo
+    .installAvailable//false, .installNote//"", .description//"",
+    ((.tags | if type == "array" then map(strings) else [] end) as $t
+     | if ($t | length) > 0 then "#" + ($t | join("  #")) else "" end)' <<<"$e")
 
   local vline
   case "$vstat/$vcov" in
@@ -100,28 +100,22 @@ show_detail() {  # $1 = id
   local choice
   choice=$(printf '%s\n' "${actions[@]}" | gum choose --header "  $name") || return
   case "$choice" in
-    🛡*) run_audit "$1" ;;
-    🧩*) run_fix "$1" ;;
+    🛡*) run_tool "$AUDIT" "$1" ;;
+    🧩*) run_tool "$SELF_DIR/nixarchy-plugin-fix" "$1" ;;
     📋*) printf '%s' "$install" | wl-copy 2>/dev/null && gum style --foreground 42 "  Copied:  $install" || echo "  $install"; gum input --placeholder "Enter to continue" >/dev/null 2>&1 || read -r _ ;;
     🌐*) [[ $repo == https://github.com/* ]] && omarchy launch browser "$repo" >/dev/null 2>&1 & ;;
     *) return ;;
   esac
 }
 
-run_fix() {  # $1 = id; nixarchy-plugin-fix asks explain / fix / back itself
-  local id="$1"
+# run_tool <script> <id>: run the audit or nixarchy-plugin-fix (which asks
+# explain / fix / back itself) in this same terminal, so its report stays on
+# screen until Enter. The id is validated to the plugin-id charset first.
+run_tool() {
+  local script="$1" id="$2"
   [[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { gum style --foreground 196 "  refusing suspicious id"; return; }
   echo
-  /run/current-system/sw/bin/bash "$SELF_DIR/nixarchy-plugin-fix" "$id"
-  echo
-  gum input --placeholder "Enter to return to the list" >/dev/null 2>&1 || read -r _
-}
-
-run_audit() {  # $1 = id, validated to the plugin-id charset before use
-  local id="$1"
-  [[ $id =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { gum style --foreground 196 "  refusing suspicious id"; return; }
-  echo
-  /run/current-system/sw/bin/bash "$AUDIT" "$id"   # runs in this same terminal; report stays on screen
+  /run/current-system/sw/bin/bash "$script" "$id"
   echo
   gum input --placeholder "Enter to return to the list" >/dev/null 2>&1 || read -r _
 }

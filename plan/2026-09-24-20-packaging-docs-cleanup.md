@@ -272,3 +272,14 @@ Run before and after each phase; all must pass:
   instead of starting with `git pull`. The approved
   decisions stand: STAT and `stat()` kept, the shared `lib/update.sh` code
   kept, HANCORE comments reworded, no behaviour change.
+- **Step 12, `show_detail`.** The one `jq` prints its fields NUL-separated
+  (`jq --raw-output0`, jq 1.7+), read by `IFS= read -r -d ''` per field, not
+  tab-separated through `gsub("[\t\n]"; " ")`. A tab is IFS whitespace, so
+  `IFS=$'\t' read` collapses empty fields and shifts the rest; and a
+  non-string value (an object `name`, say) prints over several lines, which
+  the `gsub` would have flattened. NUL keeps both exactly as before, and no
+  field can hold one (`entry_by_id` turns control characters into spaces).
+  Checked with `gum` stubbed to echo its argv: the details view, the copy and
+  open actions, and `run_tool` for audit and fix, over a fixture catalog
+  (tab and newline in fields, empty fields, odd types, a bad id) and 400 real
+  entries: byte-identical.
