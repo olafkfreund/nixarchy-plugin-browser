@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 issue: 18
 intent: intent/2026-09-24-18-cli-robustness.md
 ---
