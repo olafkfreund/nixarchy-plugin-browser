@@ -53,7 +53,7 @@
       # the plugin package, so it still finds its own lib/ next to it; the
       # scripts pin their own root-owned PATH, so nothing is added here.
       cliFor = pkgs: plugin:
-        pkgs.runCommand "nixarchy-plugin-browser-cli-${manifest.version}" { } ''
+        pkgs.runCommand "nixarchy-plugin-browser-cli-${manifest.version}" { meta.mainProgram = "omarchy-plugin-browser"; } ''
           mkdir -p "$out/bin"
           ${nixpkgs.lib.concatMapStringsSep "\n" (t: ''
             printf '#!%s\nexec %s %s "$@"\n' ${pkgs.runtimeShell} ${pkgs.bash}/bin/bash ${plugin}/bin/${t} > "$out/bin/${t}"
