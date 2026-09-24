@@ -4,6 +4,7 @@
 # the shell panel reads. Uses a fresh fixture catalog (so nothing is fetched)
 # and asserts the fields, the star order and the community-only filter.
 # Prints "ok" and exits 0, or names the first failure and exits 1.
+# tier: host
 set -uo pipefail
 
 LIB="$(cd -- "$(dirname -- "$0")/.." && pwd)/lib/catalog.sh"

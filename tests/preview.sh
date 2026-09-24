@@ -3,6 +3,7 @@
 # tests/preview.sh — self-check for catalog.sh's preview checks, without the
 # network: the path allowlist, the file check (size and magic bytes), and the
 # off switch. Prints "ok" and exits 0, or names the first failure and exits 1.
+# tier: host
 set -uo pipefail
 
 LIB="$(cd -- "$(dirname -- "$0")/.." && pwd)/lib/catalog.sh"

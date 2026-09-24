@@ -4,6 +4,7 @@
 # rule that code in docs/ is still scanned). Builds a fixture plugin, runs the
 # scanner on it unsandboxed (it only reads files), and asserts each expected
 # record. Prints "ok" and exits 0, or names the first failure and exits 1.
+# tier: hermetic
 set -uo pipefail
 
 SCANNER="$(cd -- "$(dirname -- "$0")/.." && pwd)/lib/omarchy-plugin-scan.sh"

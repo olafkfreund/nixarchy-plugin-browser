@@ -2,6 +2,7 @@
 //   nix run nixpkgs#nodejs -- tests/model-check.mjs [catalog-list.json]
 // With a real `lib/catalog.sh list` output as the argument it also times the
 // parse and a filter (the plan's 16 ms budget for one keystroke).
+// tier: hermetic
 import { readFileSync } from "node:fs"
 import vm from "node:vm"
 import assert from "node:assert/strict"
