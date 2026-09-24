@@ -9,7 +9,7 @@ import assert from "node:assert/strict"
 
 const src = readFileSync(new URL("../Model.js", import.meta.url), "utf8").replace(/^\.pragma library\s*$/m, "")
 const M = {}
-vm.runInNewContext(src + "\nObject.assign(M, {isSafeId, parsePayload, parseRows, filterRows, verdictLabel, nixLabel, parseReport, lastLines, clean, openArgv, agentArgv, auditArgv, installArgv, copyArgv, SHORTCUTS, reportLines, previewArgv, isPreviewPath})", { M })
+vm.runInNewContext(src + "\nObject.assign(M, {isSafeId, parsePayload, parseRows, filterRows, verdictLabel, nixLabel, parseReport, lastLines, clean, openArgv, agentArgv, auditArgv, installArgv, copyArgv, SHORTCUTS, reportLines, previewArgv, isPreviewPath, cardExtent})", { M })
 
 // Values made inside the vm context have that realm's prototypes; compare as data.
 const j = (v) => JSON.parse(JSON.stringify(v))
@@ -80,6 +80,14 @@ assert.equal(M.openArgv("https://evil.example/x"), null)
 assert.equal(M.openArgv("https://github.com/a/b;rm"), null)
 assert.ok(M.openArgv("https://github.com/crmne/omarchy-hyprmoncfg"))
 assert.ok(M.SHORTCUTS.some(s => s.keys === "?"))
+
+// card size
+assert.equal(M.cardExtent(1280, 0.6, 560, 960, 10), 768)  // share wins
+assert.equal(M.cardExtent(3840, 0.6, 560, 960, 10), 960)  // ceiling
+assert.equal(M.cardExtent(800, 0.7, 420, 760, 10), 560)   // share, above floor
+assert.equal(M.cardExtent(600, 0.7, 420, 760, 10), 420)   // floor
+assert.equal(M.cardExtent(500, 0.6, 560, 960, 10), 480)   // room beats floor
+assert.equal(M.cardExtent(10, 0.6, 560, 960, 10), 0)      // degenerate
 
 // optional: timing on a real list
 const real = process.argv[2]
