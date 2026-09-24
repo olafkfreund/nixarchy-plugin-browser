@@ -336,3 +336,9 @@ installed plugin is unaffected by a rollback; the audit only reads it.
   repo:7}`, in the test) cannot make every lookup fail either; same junk-row
   class as the non-object items. `url_ok` names the refused kind (`https`
   form, `ssh`, `git@`, `file://`, `a git option`, `this URL form`).
+- **Step 4 (item 5).** `--json` had no symlinks list, which the step's test
+  reads; it gains one additive key, `symlinks` (array of paths). No existing
+  key changes. The symlink messages drop "tracked", since untracked links are
+  now listed too. Tests that can reach `omarchy plugin add` also set
+  `XDG_RUNTIME_DIR` to a temp dir, so its `rescanPlugins` call cannot reach the
+  live shell.

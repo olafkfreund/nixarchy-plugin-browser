@@ -278,7 +278,7 @@ clone_hardened() {  # clone_hardened <url> <dest> <allowed git protocols>
   GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND="ssh -oBatchMode=yes" GIT_ALLOW_PROTOCOL="$3" \
     _bound_run "clone" "$2" -- \
     git -c core.symlinks=false -c core.hooksPath=/dev/null -c advice.detachedHead=false \
-      clone --quiet --no-checkout -- "$1" "$2"
+      clone --quiet --no-checkout --config core.symlinks=false -- "$1" "$2"
 }
 
 copy_hardened() {  # $1=source dir -> $CHECKOUT
@@ -375,6 +375,14 @@ SYMLINKS=""
 if [[ -d $CHECKOUT/.git ]]; then
   SYMLINKS=$(git -C "$CHECKOUT" ls-files -s 2>/dev/null | awk '$1=="120000"{print $4}')
 fi
+# A real link can still reach staging: an untracked one (or one dropped from
+# the index) in a local folder, or any link in a folder without git. Each is
+# listed like a tracked one and removed, so nothing reads through it.
+while IFS= read -r -d '' l; do
+  SYMLINKS+="${SYMLINKS:+$'\n'}$(clean "${l#"$CHECKOUT"/}")"
+  rm -f -- "$l"
+done < <(find "$CHECKOUT" -path "$CHECKOUT/.git" -prune -o -type l -print0)
+SYMLINKS=$(sort -u <<<"$SYMLINKS" | sed '/^$/d')
 
 # ------------------------------------------------------------------- run scan
 RAW="$STAGE/scan.out"
@@ -435,7 +443,7 @@ else NIX_VERDICT=likely-ok; fi
 # (the agent gets files, not the plugin's history or hooks), writable (a
 # /nix/store copy is read-only), and never with a symlink in it.
 if [[ -n $EXPORT_TREE ]]; then
-  [[ -z $SYMLINKS ]] || die "--export-tree: the plugin tracks symlinks; refusing to export it" 20
+  [[ -z $SYMLINKS ]] || die "--export-tree: the plugin has symlinks; refusing to export it" 20
   mkdir -- "$EXPORT_TREE" || die "--export-tree: cannot create $EXPORT_TREE" 3
   _bound_run "export" "$EXPORT_TREE" -- cp -a -- "$CHECKOUT/." "$EXPORT_TREE/" \
     || die "--export-tree: copy failed" 3
@@ -457,7 +465,7 @@ if (( AS_JSON )); then
     --argjson nfind "$n_find" --argjson ncap "$n_cap" \
     --arg nixverdict "$NIX_VERDICT" --argjson nixb "$n_nixb" --argjson nixr "$n_nixr" \
     --argjson nixsev "$(jq -n --arg b "$NIX_BLOCKERS" '$b | split(" ") | map({(.): "blocker"}) | add')" \
-    --rawfile raw "$RAW" '
+    --arg symlinks "$SYMLINKS" --rawfile raw "$RAW" '
     ($raw | split("\n") | map(select(length>0) | split("\t"))) as $rows
     | {
       target:$target, repo:$repo, id:$id,
@@ -465,6 +473,7 @@ if (( AS_JSON )); then
       marketplace:{snapshotStatus:$vstatus, coverage:$vcover, method:$vmethod},
       outcome:$outcome, manifestValidate:$validate,
       findingCount:$nfind, capabilityCount:$ncap,
+      symlinks: ($symlinks | split("\n") | map(select(length>0))),
       findings:   [ $rows[] | select(.[0]=="FIND") | {id:.[1], at:.[2], evidence:.[3]} ],
       capabilities:[ $rows[] | select(.[0]=="CAP")  | {id:.[1], at:.[2], evidence:.[3]} ],
       info:       [ $rows[] | select(.[0]=="INFO") | {id:.[1], at:.[2], evidence:.[3]} ],
@@ -584,7 +593,7 @@ esac
 # symlink warning
 if [[ -n $SYMLINKS ]]; then
   head2 "Symlinks"
-  say "  ${YEL}⚠ tracked symlinks present — the shell refuses these on install:${RST}"
+  say "  ${YEL}⚠ symlinks present — the shell refuses these on install:${RST}"
   while read -r s; do [[ -n $s ]] && printf '      %s\n' "$(clean "$s")"; done <<<"$SYMLINKS"
 fi
 
@@ -614,7 +623,7 @@ if (( DO_INSTALL )); then
   if [[ -z $REPO_URL ]]; then
     say "  ${YEL}--install needs a git repo; this was a local folder. Skipping.${RST}"
   elif [[ -n $SYMLINKS ]]; then
-    say "  ${RED}Refusing --install: tracked symlinks would be rejected by the shell (and are a red flag).${RST}"; OC_EXIT=$(( OC_EXIT<20?20:OC_EXIT ))
+    say "  ${RED}Refusing --install: symlinks would be rejected by the shell (and are a red flag).${RST}"; OC_EXIT=$(( OC_EXIT<20?20:OC_EXIT ))
   elif (( OC_EXIT >= 20 )); then
     say "  ${RED}Refusing --install: audit is '${OUTCOME}'. Re-run and read the findings, or install manually if you accept them.${RST}"
   elif ! command -v omarchy-plugin-add >/dev/null && ! command -v omarchy >/dev/null; then
@@ -626,7 +635,7 @@ if (( DO_INSTALL )); then
     install_branch="${DEFAULT_BRANCH:-main}"
     [[ -n $APPLY_PATCH ]] && install_branch=nixarchy-local   # ff-only updates stop here
     add_src="$STAGE/install-src"
-    GIT_ALLOW_PROTOCOL=file git -c core.symlinks=false -c advice.detachedHead=false clone --quiet "$CHECKOUT" "$add_src" 2>/dev/null || cp -a "$CHECKOUT" "$add_src"
+    GIT_ALLOW_PROTOCOL=file git -c core.symlinks=false -c advice.detachedHead=false clone --quiet --config core.symlinks=false "$CHECKOUT" "$add_src" 2>/dev/null || cp -a "$CHECKOUT" "$add_src"
     git -C "$add_src" -c advice.detachedHead=false checkout -B "$install_branch" "$SCAN_COMMIT" --quiet 2>/dev/null || true
     [[ -n $REPO_URL ]] && git -C "$add_src" remote set-url origin "$REPO_URL" 2>/dev/null || true
     say "  Installing the audited checkout (${SCAN_COMMIT:0:12}) — DISABLED, per Omarchy's review-first flow…"
