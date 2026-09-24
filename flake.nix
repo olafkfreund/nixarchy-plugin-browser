@@ -3,9 +3,13 @@
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-  outputs = { self, nixpkgs }:
+  outputs =
+    { self, nixpkgs }:
     let
-      systems = [ "x86_64-linux" "aarch64-linux" ];
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
       forAll = nixpkgs.lib.genAttrs systems;
 
       manifest = builtins.fromJSON (builtins.readFile ./manifest.json);
@@ -26,11 +30,20 @@
         ./BrowserState.qml
         ./ShortcutSheet.qml
       ];
-      dirs = [ ./bin ./lib ./hypr ];
+      dirs = [
+        ./bin
+        ./lib
+        ./hypr
+      ];
 
-      tools = [ "omarchy-plugin-audit" "omarchy-plugin-browser" "nixarchy-plugin-fix" ];
+      tools = [
+        "omarchy-plugin-audit"
+        "omarchy-plugin-browser"
+        "nixarchy-plugin-fix"
+      ];
 
-      pluginFor = pkgs:
+      pluginFor =
+        pkgs:
         # runCommand and plain copies, deliberately: omarchy-plugin-validate
         # refuses any symlink inside a plugin folder, so symlinkJoin or a
         # linkFarm would fail validation at rebuild time.
@@ -52,22 +65,27 @@
       # The three tools on PATH for terminal use. Each runs the script inside
       # the plugin package, so it still finds its own lib/ next to it; the
       # scripts pin their own root-owned PATH, so nothing is added here.
-      cliFor = pkgs: plugin:
-        pkgs.runCommand "nixarchy-plugin-browser-cli-${manifest.version}" { meta.mainProgram = "omarchy-plugin-browser"; } ''
-          mkdir -p "$out/bin"
-          ${nixpkgs.lib.concatMapStringsSep "\n" (t: ''
-            printf '#!%s\nexec %s %s "$@"\n' ${pkgs.runtimeShell} ${pkgs.bash}/bin/bash ${plugin}/bin/${t} > "$out/bin/${t}"
-            chmod +x "$out/bin/${t}"
-          '') tools}
-        '';
+      cliFor =
+        pkgs: plugin:
+        pkgs.runCommand "nixarchy-plugin-browser-cli-${manifest.version}"
+          { meta.mainProgram = "omarchy-plugin-browser"; }
+          ''
+            mkdir -p "$out/bin"
+            ${nixpkgs.lib.concatMapStringsSep "\n" (t: ''
+              printf '#!%s\nexec %s %s "$@"\n' ${pkgs.runtimeShell} ${pkgs.bash}/bin/bash ${plugin}/bin/${t} > "$out/bin/${t}"
+              chmod +x "$out/bin/${t}"
+            '') tools}
+          '';
     in
     {
       # The key bind, the one piece that lives outside the plugin folder. Writes
       # ~/.config/hypr/plugin-browser-binds.lua from the file the plugin ships,
       # so the Nix and non-Nix installs bind the same thing. bindings.lua still
       # has to load it: pcall(require, "hypr.plugin-browser-binds").
-      homeManagerModules.default = { config, lib, ... }:
-        let cfg = config.programs.nixarchy-plugin-browser;
+      homeManagerModules.default =
+        { config, lib, ... }:
+        let
+          cfg = config.programs.nixarchy-plugin-browser;
         in
         {
           options.programs.nixarchy-plugin-browser.keybinding = lib.mkOption {
@@ -83,62 +101,77 @@
                 (builtins.readFile ./hypr/plugin-browser-binds.lua);
           };
         };
+      homeModules = self.homeManagerModules;
 
-      packages = forAll (system:
-        let pkgs = nixpkgs.legacyPackages.${system};
-        in rec {
+      packages = forAll (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+        in
+        rec {
           default = plugin;
           plugin = pluginFor pkgs;
           cli = cliFor pkgs plugin;
-        });
+        }
+      );
 
-      checks = forAll (system:
+      checks = forAll (
+        system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
           plugin = self.packages.${system}.default;
         in
         {
-          default = pkgs.runCommand "nixarchy-plugin-browser-check"
-            {
-              nativeBuildInputs = with pkgs; [ nodejs jq file gnugrep gnused findutils coreutils ];
-            }
-            ''
-              # The package: no symlinks (the validator refuses them) and none of
-              # the repository-only files.
-              test "$(find ${plugin} -type l | wc -l)" = 0
-              for x in tests intent spec plan install.sh uninstall.sh; do
-                test ! -e ${plugin}/$x || { echo "unexpected in the plugin: $x"; exit 1; }
-              done
+          default =
+            pkgs.runCommand "nixarchy-plugin-browser-check"
+              {
+                nativeBuildInputs = with pkgs; [
+                  nodejs
+                  jq
+                  file
+                  gnugrep
+                  gnused
+                  findutils
+                  coreutils
+                ];
+              }
+              ''
+                # The package: no symlinks (the validator refuses them) and none of
+                # the repository-only files.
+                test "$(find ${plugin} -type l | wc -l)" = 0
+                for x in tests intent spec plan install.sh uninstall.sh; do
+                  test ! -e ${plugin}/$x || { echo "unexpected in the plugin: $x"; exit 1; }
+                done
 
-              # nixarchy's own build check for programs.nixarchy.plugins, verbatim:
-              # no pacman or yay on a non-comment line of the plugin's code.
-              hits=$(find ${plugin} -type f \( -name '*.qml' -o -name '*.js' -o -name '*.sh' -o -name '*.bash' \) -print0 |
-                xargs -0 -r grep -nHE '\bpacman\b|\byay\b' | grep -vE ':[0-9]+:[[:space:]]*(//|#)' || true)
-              test -z "$hits" || { echo "$hits"; exit 1; }
+                # nixarchy's own build check for programs.nixarchy.plugins, verbatim:
+                # no pacman or yay on a non-comment line of the plugin's code.
+                hits=$(find ${plugin} -type f \( -name '*.qml' -o -name '*.js' -o -name '*.sh' -o -name '*.bash' \) -print0 |
+                  xargs -0 -r grep -nHE '\bpacman\b|\byay\b' | grep -vE ':[0-9]+:[[:space:]]*(//|#)' || true)
+                test -z "$hits" || { echo "$hits"; exit 1; }
 
-              # The hermetic tier, against the packaged files. Host-tier tests
-              # need the host's /run/current-system/sw (the scripts pin their
-              # PATH to it), so they run outside the sandbox: tests/run.sh host.
-              cp -r ${plugin} work && chmod -R u+w work && cp -r ${./tests} work/tests
-              bash work/tests/run.sh hermetic
-              touch $out
-            '';
+                # The hermetic tier, against the packaged files. Host-tier tests
+                # need the host's /run/current-system/sw (the scripts pin their
+                # PATH to it), so they run outside the sandbox: tests/run.sh host.
+                cp -r ${plugin} work && chmod -R u+w work && cp -r ${./tests} work/tests
+                bash work/tests/run.sh hermetic
+                touch $out
+              '';
 
           # Every runtime file in the repository made it into the package: a
           # new QML or JS file not added to `files` fails here, not on a user.
-          files = pkgs.runCommand "nixarchy-plugin-browser-files"
-            { nativeBuildInputs = [ pkgs.diffutils ]; }
-            ''
-              rc=0
-              for f in ${self}/*.qml ${self}/*.js ${self}/qmldir ${self}/manifest.json; do
-                n=$(basename "$f")
-                test -e ${plugin}/"$n" || { echo "missing from the plugin: $n"; rc=1; }
-              done
-              for d in bin lib hypr; do
-                diff -r ${self}/$d ${plugin}/$d || rc=1
-              done
-              test $rc = 0 && touch $out
-            '';
+          files =
+            pkgs.runCommand "nixarchy-plugin-browser-files" { nativeBuildInputs = [ pkgs.diffutils ]; }
+              ''
+                rc=0
+                for f in ${self}/*.qml ${self}/*.js ${self}/qmldir ${self}/manifest.json; do
+                  n=$(basename "$f")
+                  test -e ${plugin}/"$n" || { echo "missing from the plugin: $n"; rc=1; }
+                done
+                for d in bin lib hypr; do
+                  diff -r ${self}/$d ${plugin}/$d || rc=1
+                done
+                test $rc = 0 && touch $out
+              '';
 
           # The Home Manager module, evaluated against a stub of home.file (no
           # home-manager input): default chord, a custom chord, null, and a
@@ -148,26 +181,42 @@
               lib = nixpkgs.lib;
               stub = {
                 options.home.file = lib.mkOption {
-                  type = lib.types.attrsOf (lib.types.submodule {
-                    options.text = lib.mkOption { type = lib.types.str; };
-                  });
+                  type = lib.types.attrsOf (
+                    lib.types.submodule {
+                      options.text = lib.mkOption { type = lib.types.str; };
+                    }
+                  );
                   default = { };
                 };
               };
-              homeFiles = keybinding: (lib.evalModules {
-                modules = [ stub self.homeManagerModules.default ]
-                  ++ lib.optional (keybinding != "default") { programs.nixarchy-plugin-browser.keybinding = keybinding; };
-              }).config.home.file;
+              homeFiles =
+                keybinding:
+                (lib.evalModules {
+                  modules = [
+                    stub
+                    self.homeManagerModules.default
+                  ]
+                  ++ lib.optional (keybinding != "default") {
+                    programs.nixarchy-plugin-browser.keybinding = keybinding;
+                  };
+                }).config.home.file;
               bind = keybinding: (homeFiles keybinding).".config/hypr/plugin-browser-binds.lua".text;
               results = {
                 default = lib.hasInfix ''o.bind("SUPER + ALT + U"'' (bind "default");
                 custom = lib.hasInfix ''o.bind("SUPER + SHIFT + P"'' (bind "SUPER + SHIFT + P");
                 null = homeFiles null == { };
-                injection = (builtins.tryEval (builtins.deepSeq (bind "U\"); os.execute(\"") true)) == { success = false; value = false; };
+                injection =
+                  (builtins.tryEval (builtins.deepSeq (bind "U\"); os.execute(\"") true)) == {
+                    success = false;
+                    value = false;
+                  };
               };
             in
-            assert lib.assertMsg (lib.all lib.id (lib.attrValues results)) "hm-module: ${builtins.toJSON results}";
+            assert lib.assertMsg (lib.all lib.id (
+              lib.attrValues results
+            )) "hm-module: ${builtins.toJSON results}";
             pkgs.writeText "nixarchy-plugin-browser-hm-module" (builtins.toJSON results);
-        });
+        }
+      );
     };
 }

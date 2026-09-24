@@ -82,7 +82,7 @@ Your `bindings.lua` still needs `pcall(require, "hypr.plugin-browser-binds")`.
 |--------|------------|
 | `packages.<system>.default` (`.plugin`) | the plugin folder, runtime files only |
 | `packages.<system>.cli` | `omarchy-plugin-audit`, `omarchy-plugin-browser`, `nixarchy-plugin-fix` |
-| `homeManagerModules.default` | `programs.nixarchy-plugin-browser.keybinding`, which writes the binds file |
+| `homeManagerModules.default` (also `homeModules.default`) | `programs.nixarchy-plugin-browser.keybinding`, which writes the binds file |
 
 To update, run `nix flake update nixarchy-plugin-browser` and rebuild. The bar
 still tells you when a new version is out, but on a Nix install it points
