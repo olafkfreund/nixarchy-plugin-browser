@@ -49,6 +49,16 @@ out=$(bash "$LIB" preview assets/img/plugins/5-crmne-omarchy-hyprmoncfg-card.web
 [[ $out == *"previews are off"* ]] || fail "off switch: message was '$out'"
 [[ ! -e $XDG_CACHE_HOME/omarchy-plugin-audit/previews ]] || fail "off switch: previews/ was created"
 
+# The switch fails closed (#18): a config jq cannot read means off, not on.
+echo '{' >"$XDG_CONFIG_HOME/nixarchy-plugin-browser/config.json"
+out=$(bash "$LIB" preview assets/img/plugins/5-crmne-omarchy-hyprmoncfg-card.webp 2>&1); rc=$?
+[[ $rc == 4 ]] || fail "malformed config: expected exit 4, got $rc ($out)"
+[[ ! -e $XDG_CACHE_HOME/omarchy-plugin-audit/previews ]] || fail "malformed config: previews/ was created"
+echo '{"previews": false}' >"$XDG_CONFIG_HOME/nixarchy-plugin-browser/config.json"
+mkdir "$T/nobin"
+( PATH="$T/nobin"; fetch_preview assets/img/plugins/5-crmne-omarchy-hyprmoncfg-card.webp >/dev/null 2>&1 ); rc=$?
+[[ $rc == 4 ]] || fail "jq missing: expected exit 4, got $rc"
+
 # A bad path is refused (exit 2) before the network, with previews on.
 rm -f "$XDG_CONFIG_HOME/nixarchy-plugin-browser/config.json"
 bash "$LIB" preview "../../etc/passwd" >/dev/null 2>&1; rc=$?
