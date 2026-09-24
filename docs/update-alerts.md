@@ -109,8 +109,9 @@ turns the check off. Bar widgets also honour `"update_check": false` in their
   throwaway `quickshell -p <dir>/shell.qml` with `Commons` and `Ui` symlinked
   from `/usr/share/omarchy/shell`, fake a newer version by writing the cache
   file with `"latest": "9.9.9"` and `"checked"` set to now, and test the
-  mismatch case against an older helper or artifact. Point
-  `OMARCHY_PLUGIN_UPDATE_RAW` at a `file://` folder to test the fetch offline.
+  mismatch case against an older helper or artifact. To test without the
+  network, write the cache file as above; the fetch is HTTPS-only, so
+  `OMARCHY_PLUGIN_UPDATE_RAW` must be an `https://` base URL.
 - A network fetch changes the marketplace security baseline. When a listed
   plugin gains this, open a "Plugin verification" issue ("Verify and publish a
   newer upstream commit", the listed repo URL, the full SHA) and add a short
@@ -126,14 +127,14 @@ lib/update.sh run [all|install]                      open the update terminal
 lib/update.sh terminal [all|install]                 what that terminal runs
 ```
 
-Environment for tests: `OMARCHY_PLUGIN_UPDATE_RAW` (base URL, `file://` works),
+Environment for tests: `OMARCHY_PLUGIN_UPDATE_RAW` (an `https://` base URL),
 `OMARCHY_PLUGIN_UPDATE_TTL` (seconds), `OMARCHY_PLUGIN_UPDATE_PRINT=1` makes
 `run` print the argv instead of opening a terminal. `XDG_CACHE_HOME` and
 `XDG_CONFIG_HOME` move the cache and config.
 
 ## In this plugin
 
-- Kind: bar-only widget (`BarWidget.qml`) that opens a terminal; the update helper is `lib/update.sh` itself (the CLI tools do not wrap it).
+- Kind: bar-only widget (`BarWidget.qml`) that opens a terminal; the update helper is `lib/update.sh` itself (the CLI tools do not wrap it). The browser panel is keepLoaded (`BrowserState.qml` is a singleton `omarchy plugin update` does not reload), so `UPD_KEEP_LOADED=1` and the update terminal offers the shell restart it needs.
 - Published branch: `master` (the raw URL uses it; do not assume `main`).
 - Version places: `manifest.json`, `CHANGELOG.md`. The CLI tools carry no version of their own.
 - Cache: `~/.cache/omarchy-plugin-browser/update-check.json`. Opt-out: `"update_check": false` in `~/.config/omarchy-plugin-browser/config.json` (create it), or in the widget's `shell.json` entry.
