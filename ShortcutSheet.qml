@@ -1,5 +1,6 @@
 import QtQuick
 import qs.Commons
+import qs.Commons as Commons
 import "Model.js" as Model
 
 // The `?` overlay: the keys in Model.SHORTCUTS. The view matches keys itself
@@ -9,14 +10,14 @@ import "Model.js" as Model
 Rectangle {
   id: root
 
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property string fontFamily: Style.font.family
   property alias flick: flick            // BrowserView scrolls it
 
   // Opens at the top, however it was left.
   onVisibleChanged: if (visible) flick.contentY = 0
 
-  color: Color.popups.background
+  color: Commons.Color.popups.background
   radius: Style.spacing.sm
 
   // Swallow clicks so they do not reach the list underneath.
@@ -55,7 +56,7 @@ Rectangle {
           Text {
             width: Style.space(130)
             text: modelData.group
-            color: Color.muted
+            color: Commons.Color.muted
             font.family: root.fontFamily
             font.pixelSize: Style.font.title
             opacity: index === 0 || Model.SHORTCUTS[index - 1].group !== modelData.group ? 1 : 0
@@ -63,7 +64,7 @@ Rectangle {
           Text {
             width: Style.space(240)
             text: modelData.keys
-            color: Color.accent
+            color: Commons.Color.accent
             font.family: root.fontFamily
             font.pixelSize: Style.font.title
           }
