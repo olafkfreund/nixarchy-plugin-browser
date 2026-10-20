@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import "Model.js" as Model
 
 // Everything you can press: the search, the list, a plugin's details with its
@@ -12,9 +13,9 @@ import "Model.js" as Model
 FocusScope {
   id: root
 
-  property color foreground: Color.foreground
+  property color foreground: Commons.Color.foreground
   property string fontFamily: Style.font.family
-  readonly property color dim: Color.muted
+  readonly property color dim: Commons.Color.muted
 
   signal closeRequested()
 
@@ -167,7 +168,7 @@ FocusScope {
         text: BrowserState.loading ? "loading the catalog…"
               : BrowserState.catalogError !== "" ? BrowserState.catalogError
               : root.visibleRows.length + " of " + BrowserState.rows.length + " plugins   ? keys"
-        color: BrowserState.catalogError !== "" ? Color.urgent : root.dim
+        color: BrowserState.catalogError !== "" ? Commons.Color.urgent : root.dim
         font.family: root.fontFamily
         font.pixelSize: Style.font.title
         elide: Text.ElideLeft
@@ -182,14 +183,14 @@ FocusScope {
       width: parent.width
       height: search.implicitHeight + Style.spacing.md * 2
       radius: Style.spacing.sm
-      color: Color.menu.selectedBackground
+      color: Commons.Color.menu.selectedBackground
 
       TextInput {
         id: search
         anchors.fill: parent
         anchors.margins: Style.spacing.md
         color: root.foreground
-        selectionColor: Color.accent
+        selectionColor: Commons.Color.accent
         font.family: root.fontFamily
         font.pixelSize: Style.font.title
         clip: true
@@ -237,7 +238,7 @@ FocusScope {
         width: ListView.view.width
         height: rowText.implicitHeight + Style.spacing.sm * 2
         radius: Style.spacing.xs
-        color: index === root.cursor ? Color.menu.selectedBackground : "transparent"
+        color: index === root.cursor ? Commons.Color.menu.selectedBackground : "transparent"
 
         Text {
           id: rowText
@@ -250,7 +251,7 @@ FocusScope {
           text: Model.badgeGlyph(rowItem.modelData.badge) + "  " + rowItem.modelData.name
                 + "  —  " + rowItem.modelData.author
                 + (rowItem.modelData.category ? "   " + rowItem.modelData.category : "")
-          color: rowItem.index === root.cursor ? Color.menu.selectedText : root.foreground
+          color: rowItem.index === root.cursor ? Commons.Color.menu.selectedText : root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.title
         }
@@ -393,7 +394,7 @@ FocusScope {
                   : root.selected && root.selected.installAvailable !== true
                     ? "Nothing to copy: the catalog marks this plugin as not installable"
                     : "Nothing to copy: its repository is not a GitHub URL"
-            color: copied ? Color.accent : root.dim
+            color: copied ? Commons.Color.accent : root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.title
           }
@@ -405,7 +406,7 @@ FocusScope {
             visible: BrowserState.auditing && root.selected !== null && BrowserState.auditingFor === root.selected.id
             textFormat: Text.PlainText
             text: "Auditing in a sandbox… (clone, pin, scan)"
-            color: Color.accent
+            color: Commons.Color.accent
             font.family: root.fontFamily
             font.pixelSize: Style.font.title
           }
@@ -425,7 +426,7 @@ FocusScope {
             textFormat: Text.PlainText
             wrapMode: Text.Wrap
             text: BrowserState.auditError
-            color: Color.urgent
+            color: Commons.Color.urgent
             font.family: root.fontFamily
             font.pixelSize: Style.font.title
           }
@@ -438,8 +439,8 @@ FocusScope {
               textFormat: Text.PlainText
               wrapMode: Text.Wrap
               text: modelData.text
-              color: modelData.tone === "bad" ? Color.urgent
-                     : modelData.tone === "warn" ? Color.accent
+              color: modelData.tone === "bad" ? Commons.Color.urgent
+                     : modelData.tone === "warn" ? Commons.Color.accent
                      : modelData.tone === "dim" ? root.dim : root.foreground
               font.family: root.fontFamily
               font.pixelSize: Style.font.title
@@ -472,7 +473,7 @@ FocusScope {
             : root.mode === "detail"
               ? "a audit   e explain   f fix   i install   c copy   o repo   Esc back   ? keys"
               : "↑↓ move   Enter details   Ctrl+R refresh   Esc close   ? keys"
-      color: root.confirmOpen ? Color.accent : root.dim
+      color: root.confirmOpen ? Commons.Color.accent : root.dim
       font.family: root.fontFamily
       font.pixelSize: Style.font.title
     }

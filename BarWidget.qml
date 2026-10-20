@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 import "Model.js" as Model
 
@@ -125,7 +126,7 @@ BarWidget {
       anchors.top: parent.top; anchors.right: parent.right
       anchors.margins: Style.space(3)
       width: Style.space(6); height: width; radius: width / 2
-      color: Color.accent
+      color: Commons.Color.accent
     }
   }
 
@@ -145,7 +146,7 @@ BarWidget {
         text: root.updateAvailable
               ? "Plugin Browser " + root.updateInfo.latest + " is available (you have " + root.version + ")"
               : "Finish updating Plugin Browser"
-        color: Color.popups.text; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true
+        color: Commons.Color.popups.text; font.family: Style.font.family; font.pixelSize: Style.font.body; font.bold: true
       }
       Repeater {
         model: root.updateAvailable && Array.isArray(root.updateInfo.notes) ? root.updateInfo.notes.slice(0, 4) : []
@@ -153,7 +154,7 @@ BarWidget {
           required property var modelData
           width: updateCol.width; wrapMode: Text.Wrap; textFormat: Text.PlainText
           text: "•  " + modelData
-          color: Color.popups.text; opacity: 0.8; font.family: Style.font.family; font.pixelSize: Style.font.caption
+          color: Commons.Color.popups.text; opacity: 0.8; font.family: Style.font.family; font.pixelSize: Style.font.caption
         }
       }
       Text {
@@ -163,14 +164,14 @@ BarWidget {
                  ? "Installed through Nix: update with nix flake update nixarchy-plugin-browser and rebuild."
                  : "Update opens a terminal: omarchy plugin update shows the changes and asks, then install.sh relinks the commands, then offers a shell restart.")
               : "Run install.sh once so the linked commands match. It only relinks this plugin's commands."
-        color: Color.popups.text; opacity: 0.6; font.family: Style.font.family; font.pixelSize: Style.font.caption
+        color: Commons.Color.popups.text; opacity: 0.6; font.family: Style.font.family; font.pixelSize: Style.font.caption
       }
       Item { width: 1; height: Style.space(2) }
       Row {
         spacing: Style.space(4)
-        Button { visible: !root.nixInstall; text: root.updateAvailable ? "Update…" : "Finish update…"; bordered: true; foreground: Color.accent; onClicked: root.runUpdate() }
-        Button { text: "Later"; bordered: true; foreground: Color.popups.text; onClicked: root.dismissUpdate() }
-        Button { text: "Browse plugins"; foreground: Color.popups.text; onClicked: root.launch() }
+        Button { visible: !root.nixInstall; text: root.updateAvailable ? "Update…" : "Finish update…"; bordered: true; foreground: Commons.Color.accent; onClicked: root.runUpdate() }
+        Button { text: "Later"; bordered: true; foreground: Commons.Color.popups.text; onClicked: root.dismissUpdate() }
+        Button { text: "Browse plugins"; foreground: Commons.Color.popups.text; onClicked: root.launch() }
       }
     }
   }
